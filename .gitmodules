@@ -1,0 +1,9 @@
+[submodule "external/shared/emp-tool"]
+	path = external/shared/emp-tool
+	url = https://github.com/emp-toolkit/emp-tool.git
+[submodule "external/shared/jsoncpp"]
+	path = external/shared/jsoncpp
+	url = https://github.com/open-source-parsers/jsoncpp.git
+[submodule "external/static/jsoncpp"]
+	path = external/static/jsoncpp
+	url = https://github.com/open-source-parsers/jsoncpp.git
