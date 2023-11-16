@@ -1,6 +1,6 @@
 #include <iostream>
 #include <fstream>
-#include <jsoncpp/json/json.h>
+#include <include/json/json.h>
 #include <emp-tool/utils/prg.h>
 #include "../utils/math_utils.h"
 
@@ -62,7 +62,7 @@ class FluidRSSClient {
 
         Value dataset;
         file >> dataset;
-        if(num > dataset.size()) {
+        if(data_num > dataset.size()) {
             cout << "There is not enough data" << endl;
         }
 
@@ -85,8 +85,8 @@ class FluidRSSClient {
             block temp_sum;
             for(int j = 0; j < this->key_size; j++) {
                 block temp;
-                PRG prg(this->keys[j]);
-                prg.random_block(temp);
+                PRG prg(&(this->keys[j]));
+                prg.random_block(&temp);
                 temp_sum -= temp;
             }
             shares[i] = data[i] - temp_sum;
