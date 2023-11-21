@@ -1,7 +1,10 @@
 #include <iostream>
 #include <fstream>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #include <include/json/json.h>
 #include <emp-tool/utils/prg.h>
+#include <emp-tool/io/highspeed_net_io_channel.h>
 #include "../utils/math_utils.h"
 
 using namespace std;
@@ -11,8 +14,8 @@ using namespace Json;
 class FluidRSSClient {
     public:
     FluidRSSClient();
-    FluidRSSClient(int client_size, int client_id, int server_size)
-        : client_size(client_size), client_id(client_id), server_size(server_size) {
+    FluidRSSClient(int client_id, int server_size)
+        : client_id(client_id), server_size(server_size) {
         // 计算默认阈值，保证诚实大多数
         this->threshold = server_size % 2 == 0 ? (server_size / 2 - 1) : (server_size / 2);
         this->key_size = C(this->threshold, server_size);
@@ -22,7 +25,7 @@ class FluidRSSClient {
         get_random_seeds(this->keys, this->key_size);
     }
     ~FluidRSSClient() {
-        delete this->keys;
+        delete[] this->keys;
     }
 
     // 获取随机数作为为随机数生成器的种子
@@ -44,12 +47,16 @@ class FluidRSSClient {
 
     // 生成int型随机数
     void generate_random_int(int num) {
-        ofstream file("./data.txt");
-        Value value;
-        for(int i = 0; i < num; i++) {
-            value[i] = rand();
-        }
-        file << value;
+        #ifdef SOURCE_DIR
+            ofstream file(SOURCE_DIR + "/resources/data.txt");
+            Value value;
+            for(int i = 0; i < num; i++) {
+                value[i] = rand();
+            }
+            file << value;
+        #else
+            cerr << "there is no file to write the random number, please provide the base(project) dir by cmake macro \"SOURCE_DIR\"" << endl;
+        #endif
     }
 
     // 获取int型数据
@@ -79,7 +86,7 @@ class FluidRSSClient {
     // long get_dataset(string filepath, double* data);
 
     // 生成数据对应的份额
-    void get_shares_from_dataset(block* shares, int* data, int data_num){
+    void get_shares_from_dataset(block* shares, const int* data, const int data_num){
         shares = new block[data_num];
         for(int i = 0; i < data_num; i++) {
             block temp_sum;
@@ -94,19 +101,64 @@ class FluidRSSClient {
     }
 
     // 生成数据对应的份额
-    void get_shares_from_dataset(block* shares, long* data);
+    void get_shares_from_dataset(block* shares, const long* data, const int data_num){
+        shares = new block[data_num];
+        for(int i = 0; i < data_num; i++) {
+            block temp_sum;
+            for(int j = 0; j < this->key_size; j++) {
+                block temp;
+                PRG prg(&(this->keys[j]));
+                prg.random_block(&temp);
+                temp_sum -= temp;
+            }
+            shares[i] = data[i] - temp_sum;
+        }
+    }
 
     // 获取与服务器的连接
-    void get_connection_to_servers();
+    void get_connection_to_servers(vector<string> ips, vector<int> ports){
+        int socketfd = socket(AF_INET, SOCK_STREAM, 0);
+        if(socketfd == -1) {
+            perror("socket");
+            return;
+        }
+
+        sockaddr_in ser;
+        // base on IPV4
+        ser.sin_family = AF_INET;
+        for(int i = 0; i < ips.size(); i++) {
+            // character order transfer
+            ser.sin_port = htons(ports[0]);
+            ser.sin_addr.s_addr = inet_addr(ips[0].c_str());
+
+            int conn = connect(socketfd, (struct sockaddr*)&ser, sizeof(ser));
+            if(conn == -1) {
+                perror("accept");
+                return;
+            }
+            SenderSubChannel* stream = new SenderSubChannel(conn);
+            this->streams.push_back(stream);
+        }
+    }
 
     // 向服务器发送数据
-    void send_data_to_server();
+    void send_data_to_server(const void* shares, const int data_num){
+        for(int i = 0; i < this->streams.size(); i++) {
+            this->streams[i]->send_data(shares, data_num);
+        }
+    }
 
     private:
-    int client_size;
+    // 客户端序号
     int client_id;
+    // 服务器committee大小
     int server_size;
+    // RSS阈值
     int threshold;
+    // （t，n）-RSS下的密钥数量
     int key_size;
+    // 密钥，用于生成随机数份额
     block* keys;
+    // 通信连接
+    vector<SenderSubChannel*> streams;
 };

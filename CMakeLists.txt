@@ -32,3 +32,5 @@ if(NOT emp-tool_FOUND)
     )
     add_subdirectory(external/shared/emp-tool)
 endif()
+
+add_definitions(-DSOURCE_DIR="${PROJECT_SOURCE_DIR}")
