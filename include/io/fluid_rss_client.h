@@ -2,9 +2,9 @@
 #include <fstream>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include <include/json/json.h>
-#include <emp-tool/utils/prg.h>
-#include <emp-tool/io/highspeed_net_io_channel.h>
+#include "jsoncpp/json/json.h"
+#include <emp-tool/emp-tool.h>
+// #include <emp-tool/io/highspeed_net_io_channel.h>
 #include "../utils/math_utils.h"
 
 using namespace std;
@@ -22,7 +22,7 @@ class FluidRSSClient {
         // 给随机数种子申请对应空间
         this->keys = new block[this->key_size];
         // 生成随机数种子，数量与 server_size 对应
-        get_random_seeds(this->keys, this->key_size);
+        get_random_seeds(this->keys);
     }
     ~FluidRSSClient() {
         delete[] this->keys;
@@ -37,18 +37,20 @@ class FluidRSSClient {
     }
 
     // 获取多个随机数作为为随机数生成器的种子
-    void get_random_seeds(block* seeds, int num = 1){
-        int seed_num = C(this->threshold, this->server_size);
-        uint32_t *seed_ptr = (uint32_t *)&seeds;
+    void get_random_seeds(block* seeds){
+        uint32_t *seed_ptr = (uint32_t *)seeds;
         random_device rand_div("/dev/urandom");
-        for(size_t i = 0; i < (sizeof(block) * seed_num) / sizeof(uint32_t); ++i)
+        for(size_t i = 0; i < (sizeof(block) * this->key_size) / sizeof(uint32_t); ++i){
             seed_ptr[i] = rand_div();
+        }
     }
 
     // 生成int型随机数
     void generate_random_int(int num) {
         #ifdef SOURCE_DIR
-            ofstream file(SOURCE_DIR + "/resources/data.txt");
+            string path(SOURCE_DIR);
+            path += "/resources/data.json";
+            ofstream file(path);
             Value value;
             for(int i = 0; i < num; i++) {
                 value[i] = rand();
@@ -143,8 +145,21 @@ class FluidRSSClient {
 
     // 向服务器发送数据
     void send_data_to_server(const void* shares, const int data_num){
-        for(int i = 0; i < this->streams.size(); i++) {
-            this->streams[i]->send_data(shares, data_num);
+        string path(SOURCE_DIR);
+        path += "/resources/mappings.json";
+        ifstream file(path);
+        Value mappings;
+        file >> mappings;
+        string index = to_string(this->server_size) + "-party";
+        Value mapping = mappings[index];
+        for(int i = 0; i < mapping.size(); i++) {
+            for(int j = 0; j < mapping[i].size(); j++) {
+                int party = mapping[i][j].asInt();
+                this->streams[party]->send_data(&(this->keys[i]), 1);
+                if(i == 0) {
+                    this->streams[party]->send_data(shares, data_num);
+                }
+            }
         }
     }
 
