@@ -22,9 +22,13 @@ class FluidRSSClient {
         this->keys = new block[this->key_size];
         // 生成随机数种子，数量与 server_size 对应
         get_random_seeds(this->keys);
+        cout << "The client has been initiated" << endl;
     }
     ~FluidRSSClient() {
         delete[] this->keys;
+        for(int i = 0; i < this->conns.size(); i++) {
+            close(conns[i]);
+        }
     }
 
     // 获取随机数作为为随机数生成器的种子
@@ -116,28 +120,32 @@ class FluidRSSClient {
     }
 
     // 获取与服务器的连接
-    void get_connection_to_servers(vector<string> ips, vector<int> ports){
-        int socketfd = socket(AF_INET, SOCK_STREAM, 0);
-        if(socketfd == -1) {
-            perror("socket");
-            return;
-        }
+    void get_connection_to_servers(vector<string> ips, vector<int> ports, int server_num){
 
-        sockaddr_in ser;
+        struct sockaddr_in ser;
         // base on IPV4
         ser.sin_family = AF_INET;
-        for(int i = 0; i < ips.size(); i++) {
-            // character order transfer
-            ser.sin_port = htons(ports[0]);
-            ser.sin_addr.s_addr = inet_addr(ips[0].c_str());
-
-            int conn = connect(socketfd, (struct sockaddr*)&ser, sizeof(ser));
-            if(conn == -1) {
-                perror("accept");
+        for(int i = 0; i < server_num; i++) {
+            int socketfd = socket(AF_INET, SOCK_STREAM, 0);
+            if(socketfd == -1) {
+                cerr << "Prepare socket error" << endl;
                 return;
             }
-            SenderSubChannel* stream = new SenderSubChannel(conn);
-            this->streams.push_back(stream);
+            // character order transfer
+            ser.sin_port = htons(ports[i]);
+            ser.sin_addr.s_addr = inet_addr(ips[i].c_str());
+            cout << "start connecting server: " << ips[i] << ":" << ports[i] << endl;
+            while(1) {
+                int conn = connect(socketfd, (struct sockaddr*)&ser, sizeof(ser));
+                if(conn == 0) {
+                    conns.push_back(conn);
+                    this->streams.push_back(new SenderSubChannel(conn));
+                    close(socketfd);
+                    cout << "create a connection to the server " << inet_ntoa(ser.sin_addr) << ":" << ports[i] << endl;
+                    break;
+                }
+            }
+            cout << "The " << i + 1 << "th server has been connected" << endl;
         }
     }
 
@@ -178,4 +186,5 @@ class FluidRSSClient {
     block* keys;
     // 通信连接
     vector<SenderSubChannel*> streams;
+    vector<int> conns;
 };
