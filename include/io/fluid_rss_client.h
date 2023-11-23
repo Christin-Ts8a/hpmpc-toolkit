@@ -4,7 +4,6 @@
 #include <arpa/inet.h>
 #include "jsoncpp/json/json.h"
 #include <emp-tool/emp-tool.h>
-// #include <emp-tool/io/highspeed_net_io_channel.h>
 #include "../utils/math_utils.h"
 
 using namespace std;
@@ -29,7 +28,7 @@ class FluidRSSClient {
     }
 
     // 获取随机数作为为随机数生成器的种子
-    void get_random_seed(block* seed){
+    void get_random_seed(block& seed){
         uint32_t *seed_ptr = (uint32_t *)&seed;
         random_device rand_div("/dev/urandom");
         for(size_t i = 0; i < sizeof(block) / sizeof(uint32_t); ++i)
@@ -50,7 +49,7 @@ class FluidRSSClient {
         #ifdef SOURCE_DIR
             string path(SOURCE_DIR);
             path += "/resources/data.json";
-            ofstream file(path);
+            ofstream file(path, ios::out | ios:: binary);
             Value value;
             for(int i = 0; i < num; i++) {
                 value[i] = rand();
@@ -75,7 +74,6 @@ class FluidRSSClient {
             cout << "There is not enough data" << endl;
         }
 
-        data = new int[data_num];
         for(int i = 0; i < data_num; i++) {
             *(data+i) = dataset[i].asInt();
         }
@@ -89,14 +87,14 @@ class FluidRSSClient {
 
     // 生成数据对应的份额
     void get_shares_from_dataset(block* shares, const int* data, const int data_num){
-        shares = new block[data_num];
         for(int i = 0; i < data_num; i++) {
             block temp_sum;
+            memset(&temp_sum, 0, sizeof(block));
             for(int j = 0; j < this->key_size; j++) {
                 block temp;
                 PRG prg(&(this->keys[j]));
                 prg.random_block(&temp);
-                temp_sum -= temp;
+                temp_sum += temp;
             }
             shares[i] = data[i] - temp_sum;
         }
@@ -104,14 +102,14 @@ class FluidRSSClient {
 
     // 生成数据对应的份额
     void get_shares_from_dataset(block* shares, const long* data, const int data_num){
-        shares = new block[data_num];
         for(int i = 0; i < data_num; i++) {
             block temp_sum;
+            memset(&temp_sum, 0, sizeof(block));
             for(int j = 0; j < this->key_size; j++) {
                 block temp;
                 PRG prg(&(this->keys[j]));
                 prg.random_block(&temp);
-                temp_sum -= temp;
+                temp_sum += temp;
             }
             shares[i] = data[i] - temp_sum;
         }
@@ -145,22 +143,26 @@ class FluidRSSClient {
 
     // 向服务器发送数据
     void send_data_to_server(const void* shares, const int data_num){
-        string path(SOURCE_DIR);
-        path += "/resources/mappings.json";
-        ifstream file(path);
-        Value mappings;
-        file >> mappings;
-        string index = to_string(this->server_size) + "-party";
-        Value mapping = mappings[index];
-        for(int i = 0; i < mapping.size(); i++) {
-            for(int j = 0; j < mapping[i].size(); j++) {
-                int party = mapping[i][j].asInt();
-                this->streams[party]->send_data(&(this->keys[i]), 1);
-                if(i == 0) {
-                    this->streams[party]->send_data(shares, data_num);
+        #ifdef SOURCE_DIR
+            string path(SOURCE_DIR);
+            path += "/resources/mappings.json";
+            ifstream file(path);
+            Value mappings;
+            file >> mappings;
+            string index = to_string(this->server_size) + "-party";
+            Value mapping = mappings[index];
+            for(int i = 0; i < mapping.size(); i++) {
+                for(int j = 0; j < mapping[i].size(); j++) {
+                    int party = mapping[i][j].asInt();
+                    this->streams[party]->send_data(&(this->keys[i]), 1);
+                    if(i == 0) {
+                        this->streams[party]->send_data(shares, data_num);
+                    }
                 }
             }
-        }
+        #else
+            cerr << "There is no base path" << endl;
+        #endif
     }
 
     private:
