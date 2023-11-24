@@ -99,7 +99,7 @@ public:
 
         // 从客户端接受密钥
         for(int i = 0; i < this->streams_rcv_cli.size(); i++) {
-            this->streams_rcv_cli[i]->recv_data(this->keys[i], this->key_size);
+            this->streams_rcv_cli[i]->recv_data(this->keys[i], this->key_size * sizeof(block));
             cout << "receive keys from client " << i + 1 << ", the keys num: " << this->key_size << endl;
         }
     }

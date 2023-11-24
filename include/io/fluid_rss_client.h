@@ -169,7 +169,7 @@ class FluidRSSClient {
         // 发送特殊份额
         for(int i = 0; i < this->streams.size(); i++) {
             if(find(mapping[0].begin(), mapping[0].end(), i) == mapping[0].end()) {
-                this->streams[i]->send_data(shares, data_num);
+                this->streams[i]->send_data(shares, data_num * sizeof(block));
                 this->streams[i]->flush();
                 cout << "the sending of the shares to the " << i + 1 << "th server has complished, the number of the sending shares: " << data_num << endl;
             }
@@ -187,7 +187,7 @@ class FluidRSSClient {
                     key_snd[key_index++] = this->keys[j];
                 }
             }
-            this->streams[i]->send_data(key_snd, key_snd_num);
+            this->streams[i]->send_data(key_snd, key_snd_num * sizeof(block));
             this->streams[i]->flush();
             cout << "the sending of the keys to the "  << i + 1 << "th server has complished, the number of the sending keys: " << key_snd_num << endl;
         }
