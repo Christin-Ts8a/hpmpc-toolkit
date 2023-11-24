@@ -26,9 +26,6 @@ class FluidRSSClient {
     }
     ~FluidRSSClient() {
         delete[] this->keys;
-        for(int i = 0; i < this->conns.size(); i++) {
-            close(conns[i]);
-        }
     }
 
     // 获取随机数作为为随机数生成器的种子
@@ -139,9 +136,7 @@ class FluidRSSClient {
             while(1) {
                 int conn = connect(socketfd, (struct sockaddr*)&ser, sizeof(ser));
                 if(conn == 0) {
-                    conns.push_back(conn);
-                    this->streams.push_back(new SenderSubChannel(conn));
-                    close(socketfd);
+                    this->streams.push_back(new SenderSubChannel(socketfd));
                     cout << "create a connection to the server " << inet_ntoa(ser.sin_addr) << ":" << ports[i] << endl;
                     break;
                 }
@@ -207,5 +202,4 @@ class FluidRSSClient {
     block* keys;
     // 通信连接
     vector<SenderSubChannel*> streams;
-    vector<int> conns;
 };

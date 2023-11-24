@@ -1,7 +1,7 @@
 #include <iostream>
 #include "io/fluid_rss_server.h"
 
-#define DATA_NUM 100
+#define DATA_NUM 10000000
 
 using namespace std;
 
@@ -18,6 +18,5 @@ int main(int argc, const char* argv[]) {
     FluidRSSServer ser(id, committee_size, client_size, port_snd, port_rcv);
     block* shares[DATA_NUM];
     ser.receive_data_from_client(shares, DATA_NUM);
-    // ser.receive_data_one();
     return 0;
 }
