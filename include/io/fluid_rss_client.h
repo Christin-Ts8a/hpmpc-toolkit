@@ -50,17 +50,18 @@ class FluidRSSClient {
 
     // 生成int型随机数
     void generate_random_int(int num) {
+        Value value;
         #ifdef SOURCE_DIR
             string path(SOURCE_DIR);
             path += "/resources/data.json";
             ofstream file(path, ios::out | ios:: binary);
-            Value value;
             for(int i = 0; i < num; i++) {
                 value[i] = rand();
             }
             file << value;
         #else
             cerr << "there is no file to write the random number, please provide the base(project) dir by cmake macro \"SOURCE_DIR\"" << endl;
+            return;
         #endif
     }
 
@@ -151,26 +152,46 @@ class FluidRSSClient {
 
     // 向服务器发送数据
     void send_data_to_server(const void* shares, const int data_num){
+        Value mappings;
         #ifdef SOURCE_DIR
             string path(SOURCE_DIR);
             path += "/resources/mappings.json";
             ifstream file(path);
-            Value mappings;
             file >> mappings;
-            string index = to_string(this->server_size) + "-party";
-            Value mapping = mappings[index];
-            for(int i = 0; i < mapping.size(); i++) {
-                for(int j = 0; j < mapping[i].size(); j++) {
-                    int party = mapping[i][j].asInt();
-                    this->streams[party]->send_data(&(this->keys[i]), 1);
-                    if(i == 0) {
-                        this->streams[party]->send_data(shares, data_num);
-                    }
-                }
-            }
         #else
             cerr << "There is no base path" << endl;
+            return;
         #endif
+        string index = to_string(this->server_size) + "-party";
+        Value mapping = mappings[index];
+
+        cout << "start sending shares to clients" << endl;
+        // 发送特殊份额
+        for(int i = 0; i < this->streams.size(); i++) {
+            if(find(mapping[0].begin(), mapping[0].end(), i) == mapping[0].end()) {
+                this->streams[i]->send_data(shares, data_num);
+                this->streams[i]->flush();
+                cout << "the sending of the shares to the " << i + 1 << "th server has complished, the number of the sending shares: " << data_num << endl;
+            }
+        }
+        cout << "shares sending finished" << endl;
+
+        // 发送密钥
+        cout << "start sending keys to clients" << endl;
+        for(int i = 0; i < this->streams.size(); i++) {
+            int key_snd_num = C(this->threshold, this->server_size - 1);
+            block key_snd[key_snd_num];
+            int key_index = 0;
+            for(int j = 0; j < this->key_size; j++) {
+                if(find(mapping[j].begin(), mapping[j].end(), i) == mapping[j].end()) {
+                    key_snd[key_index++] = this->keys[j];
+                }
+            }
+            this->streams[i]->send_data(key_snd, key_snd_num);
+            this->streams[i]->flush();
+            cout << "the sending of the keys to the "  << i + 1 << "th server has complished, the number of the sending keys: " << key_snd_num << endl;
+        }
+        cout << "keys sending finished" << endl;
     }
 
     private:

@@ -14,7 +14,12 @@ class FluidRSSServer {
 public:
     FluidRSSServer(int server_id, int committee_size, int client_size, int port_snd, int port_rcv)
         : server_id(server_id), committee_size(committee_size), client_size(client_size) {
-        
+        int threshold = committee_size % 2 == 0 ? (committee_size / 2 - 1) : (committee_size / 2);
+        this->key_size = C(threshold, this->committee_size - 1);
+        for(int i = 0; i < this->client_size; i++) {
+            block* temp_keys = new block[this->key_size];
+            this->keys.push_back(temp_keys);
+        }
         receive_connection_from_client(port_rcv);
     }
     ~FluidRSSServer() {
@@ -22,6 +27,8 @@ public:
             close(this->conns_rcv_cli[i]);
         }
     }
+
+    // 接受客户端连接
     void receive_connection_from_client(int port_rcv) {
         int socketfd = socket(AF_INET, SOCK_STREAM, 0);
         if(socketfd == -1) {
@@ -29,6 +36,8 @@ public:
             close(socketfd);
             return;
         }
+        int reuse = 1;
+		setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse));
         sockaddr_in ser;
         // base on IPV4
         ser.sin_family = AF_INET;
@@ -61,6 +70,40 @@ public:
         close(socketfd);
         cout << "All " << client_size << " clients have been connected. The server has been initiated" << endl;
     }
+
+    // 从客户端接受份额以及密钥
+    void receive_data_from_client(block* shares[], const int data_num) {
+        Value mappings;
+        Value mapping;
+        #ifdef SOURCE_DIR
+            string path(SOURCE_DIR);
+            path += "/resources/mappings.json";
+            ifstream ifs(path);
+            ifs >> mappings;
+        #else
+            cerr << "There is no base path" << endl;
+            return;
+        #endif
+        string index = to_string(this->committee_size) + "-party";
+        mapping = mappings[index];
+
+        // 从客户端接受份额
+        if(find(mapping[0].begin(), mapping[0].end(), this->server_id) == mapping[0].end()) {
+            cout << "start receiving the shares from clients" << endl;
+            for(int i = 0; i < this->streams_rcv_cli.size(); i++) {
+                shares[i] = new block[data_num];
+                this->streams_rcv_cli[i]->recv_data(shares[i], data_num * sizeof(block));
+                cout << "receive shares from client " << i + 1 << ", the shares num: " << data_num << endl;
+            }
+        }
+
+        // 从客户端接受密钥
+        for(int i = 0; i < this->streams_rcv_cli.size(); i++) {
+            this->streams_rcv_cli[i]->recv_data(this->keys[i], this->key_size);
+            cout << "receive keys from client " << i + 1 << ", the keys num: " << this->key_size << endl;
+        }
+    }
+
 private:
     // 服务器序号
     int server_id;
@@ -75,7 +118,7 @@ private:
     // （t，n）-RSS下的密钥数量
     int key_size;
     // 密钥，用于生成随机数份额
-    block* keys;
+    vector<block*> keys;
     // 通信连接
     // 向下一轮committee发送数据的连接
     vector<SenderSubChannel*> streams_snd_ser;

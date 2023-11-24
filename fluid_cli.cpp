@@ -21,16 +21,16 @@ int main(int argc, const char* argv[]) {
     // cli.generate_random_int(DATA_NUM);
 
     // 获取计算任务输入
-    // int* data = new int[DATA_NUM];
-    // #ifdef SOURCE_DIR
-    //     string path(SOURCE_DIR);
-    //     path += "/resources/data.json";
-    //     cli.get_dataset(path, data, DATA_NUM);
-    // #endif
+    int* data = new int[DATA_NUM];
+    #ifdef SOURCE_DIR
+        string path(SOURCE_DIR);
+        path += "/resources/data.json";
+        cli.get_dataset(path, data, DATA_NUM);
+    #endif
     
     // 生成输入对应份额
-    // block* share = new block[DATA_NUM];
-    // cli.get_shares_from_dataset(share, data, DATA_NUM);
+    block* share = new block[DATA_NUM];
+    cli.get_shares_from_dataset(share, data, DATA_NUM);
 
     // 获取与服务器的连接
     Value value;
@@ -48,6 +48,10 @@ int main(int argc, const char* argv[]) {
         }
         cli.get_connection_to_servers(ips, ports, server_size);
     #endif
+
+    // 向服务器发送密钥以及份额
+    cli.send_data_to_server(share, DATA_NUM);
+    // cli.send_data_one();
     
 
     return 0;
