@@ -72,7 +72,7 @@ public:
     }
 
     // 从客户端接受份额以及密钥
-    void receive_data_from_client(block* shares[], const int data_num) {
+    void receive_data_from_client(block** shares, const int data_num) {
         Value mappings;
         Value mapping;
         #ifdef SOURCE_DIR

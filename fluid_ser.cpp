@@ -16,7 +16,7 @@ int main(int argc, const char* argv[]) {
     int port_snd = atoi(argv[4]);
     int port_rcv = atoi(argv[5]);
     FluidRSSServer ser(id, committee_size, client_size, port_snd, port_rcv);
-    block* shares[DATA_NUM];
+    block** shares;
     ser.receive_data_from_client(shares, DATA_NUM);
     return 0;
 }
