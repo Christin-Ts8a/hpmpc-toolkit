@@ -104,6 +104,34 @@ public:
         }
     }
 
+    void receive_data_from_client_traditional(block** shares, const int data_num) {
+        Value mappings;
+        Value mapping;
+        #ifdef SOURCE_DIR
+            string path(SOURCE_DIR);
+            path += "/resources/mappings.json";
+            ifstream ifs(path);
+            ifs >> mappings;
+        #else
+            cerr << "There is no base path" << endl;
+            return;
+        #endif
+        string index = to_string(this->committee_size) + "-party";
+        mapping = mappings[index];
+
+        cout << "start receiving shares to clients" << endl;
+        for(int i = 0; i < this->streams_rcv_cli.size(); i++) {
+            for(int j = 0; j < mapping.size(); j++) {
+                if(find(mapping[j].begin(), mapping[j].end(), i) == mapping[j].end()) {
+                    shares[j] = new block[data_num];
+                    this->streams_rcv_cli[i]->recv_data(shares[j], data_num * sizeof(block));
+                    cout << "the receiving of the shares to the " << i + 1 << "th server has complished, the number of the sending shares: " << data_num << endl;
+                }
+            }
+        }
+        cout << "shares receiving finished" << endl;
+    }
+
 private:
     // 服务器序号
     int server_id;

@@ -117,6 +117,21 @@ class FluidRSSClient {
         }
     }
 
+    void get_shares_from_dataset_traditional(block** shares, const int* data, const int data_num){
+        for(int i = 0; i < data_num; i++) {
+            block temp_sum;
+            memset(&temp_sum, 0, sizeof(block));
+            for(int j = 0; j < this->key_size; j++) {
+                block temp;
+                PRG prg(&(this->keys[j]));
+                prg.random_block(&temp);
+                temp_sum += temp;
+                *shares[j] = temp;
+            }
+            *shares[0] = data[i] - temp_sum;
+        }
+    }
+
     // 获取与服务器的连接
     void get_connection_to_servers(vector<string> ips, vector<int> ports, int server_num){
 
@@ -187,6 +202,33 @@ class FluidRSSClient {
             cout << "the sending of the keys to the "  << i + 1 << "th server has complished, the number of the sending keys: " << key_snd_num << endl;
         }
         cout << "keys sending finished" << endl;
+    }
+
+    void send_data_to_server_traditional(block** shares, const int data_num) {
+        Value mappings;
+        #ifdef SOURCE_DIR
+            string path(SOURCE_DIR);
+            path += "/resources/mappings.json";
+            ifstream file(path);
+            file >> mappings;
+        #else
+            cerr << "There is no base path" << endl;
+            return;
+        #endif
+        string index = to_string(this->server_size) + "-party";
+        Value mapping = mappings[index];
+
+        cout << "start sending shares to clients" << endl;
+        for(int i = 0; i < this->streams.size(); i++) {
+            for(int j = 0; j < mapping.size(); j++) {
+                if(find(mapping[j].begin(), mapping[j].end(), i) == mapping[j].end()) {
+                    this->streams[i]->send_data(shares[j], data_num * sizeof(block));
+                }
+            }
+            this->streams[i]->flush();
+            cout << "the sending of the shares to the " << i + 1 << "th server has complished, the number of the sending shares: " << data_num << endl;
+        }
+        cout << "shares sending finished" << endl;
     }
 
     private:
