@@ -11,7 +11,7 @@ using namespace emp;
 using namespace Json;
 
 class FluidRSSClient {
-    public:
+public:
     FluidRSSClient();
     FluidRSSClient(int client_id, int server_size)
         : client_id(client_id), server_size(server_size) {
@@ -29,7 +29,7 @@ class FluidRSSClient {
     }
 
     // 获取随机数作为为随机数生成器的种子
-    void get_random_seed(block& seed){
+    void get_random_seed(block* seed){
         uint32_t *seed_ptr = (uint32_t *)&seed;
         random_device rand_div("/dev/urandom");
         for(size_t i = 0; i < sizeof(block) / sizeof(uint32_t); ++i)
@@ -232,7 +232,7 @@ class FluidRSSClient {
         cout << "shares sending finished" << endl;
     }
 
-    private:
+private:
     // 客户端序号
     int client_id;
     // 服务器committee大小
