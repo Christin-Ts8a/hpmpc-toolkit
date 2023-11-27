@@ -18,14 +18,12 @@ public:
         this->key_size = C(threshold, this->committee_size - 1);
         for(int i = 0; i < this->client_size; i++) {
             block* temp_keys = new block[this->key_size];
-            this->keys.push_back(temp_keys);
+            this->keys_cli.push_back(temp_keys);
         }
         receive_connection_from_client(port_rcv);
     }
     ~FluidRSSServer() {
-        for(int i = 0; i < this->conns_rcv_cli.size(); i++) {
-            close(this->conns_rcv_cli[i]);
-        }
+        delete[] this->keys;
     }
 
     // 接受客户端连接
@@ -64,7 +62,6 @@ public:
                 return;
             }
             cout << "received a connection from " << inet_ntoa(cli.sin_addr) << ":" << cli.sin_port << endl;
-            this->conns_rcv_cli.push_back(conn);
             this->streams_rcv_cli.push_back(new RecverSubChannel(conn));
         }
         close(socketfd);
@@ -99,8 +96,18 @@ public:
 
         // 从客户端接受密钥
         for(int i = 0; i < this->streams_rcv_cli.size(); i++) {
-            this->streams_rcv_cli[i]->recv_data(this->keys[i], this->key_size * sizeof(block));
+            this->streams_rcv_cli[i]->recv_data(this->keys_cli[i], this->key_size * sizeof(block));
             cout << "receive keys from client " << i + 1 << ", the keys num: " << this->key_size << endl;
+        }
+        // 合并客户端年密钥作为这一轮committee密钥
+        this->keys = new block[this->key_size];
+        this->prgs = new PRG[this->key_size];
+        memset(this->keys, 0, sizeof(block) * this->key_size);
+        for(int i = 0; i < this->key_size; i++) {
+            for(int j = 0; j < this->keys_cli.size(); j++) {
+                this->keys[i] += this->keys_cli[j][i];
+            }
+            this->prgs[i] = PRG(&(this->keys[i]));
         }
     }
 
@@ -132,6 +139,17 @@ public:
         cout << "shares receiving finished" << endl;
     }
 
+    void get_triples_rss(block** a, block** b, block* c, const int triples_num) {
+        a = new block*[this->key_size];
+        b = new block*[this->key_size];
+        c = new block[this->key_size];
+
+        for(int i = 0; i < this->key_size; i++) {
+            *a = new block[triples_num];
+            *b = new block[triples_num];
+        }
+    }
+
 private:
     // 服务器序号
     int server_id;
@@ -146,18 +164,16 @@ private:
     // （t，n）-RSS下的密钥数量
     int key_size;
     // 密钥，用于生成随机数份额
-    vector<block*> keys;
+    vector<block*> keys_cli;
+    block* keys;
+    PRG* prgs;
     // 通信连接
     // 向下一轮committee发送数据的连接
     vector<SenderSubChannel*> streams_snd_ser;
-    vector<int> conns_snd_ser;
     // 接受上一轮committee或客户端数据的连接
     vector<RecverSubChannel*> streams_rcv_cli;
-    vector<int> conns_rcv_cli;
     // 向同committee发送数据的连接
     vector<SenderSubChannel*> streams_snd_comm;
-    vector<int> conns_snd_comm;
     // 接受同committee发送数据的连接
     vector<RecverSubChannel*> streams_rcv_comm;
-    vector<int> conns_rcv_comm;
 };

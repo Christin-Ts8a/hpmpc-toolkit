@@ -24,6 +24,10 @@ int main(int argc, const char* argv[]) {
     ser.receive_data_from_client_traditional(shares, DATA_NUM);
     // block **shares;
     // ser.receive_data_from_client(shares, DATA_NUM);
+    for(int i = 0; i < share_num; i++) {
+        delete[] shares[i];
+    }
     delete[] shares;
+    
     return 0;
 }

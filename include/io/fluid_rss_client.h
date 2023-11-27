@@ -107,7 +107,7 @@ class FluidRSSClient {
         for(int i = 0; i < data_num; i++) {
             block temp_sum;
             memset(&temp_sum, 0, sizeof(block));
-            for(int j = 0; j < this->key_size; j++) {
+            for(int j = 1; j < this->key_size; j++) {
                 block temp;
                 PRG prg(&(this->keys[j]));
                 prg.random_block(&temp);
@@ -155,6 +155,7 @@ class FluidRSSClient {
                     cout << "create a connection to the server " << inet_ntoa(ser.sin_addr) << ":" << ports[i] << endl;
                     break;
                 }
+                close(socketfd);
             }
             cout << "The " << i + 1 << "th server has been connected" << endl;
         }
