@@ -5,7 +5,7 @@
 #include <jsoncpp/json/json.h>
 #include "io/fluid_sharmir_client.h"
 
-#define DATA_NUM 1000
+#define DATA_NUM 10000000
 
 using namespace std;
 using namespace emp;
@@ -39,7 +39,7 @@ int main(int argc, const char* argv[]) {
     cli.generate_random_int(DATA_NUM);
 
     // 获取计算任务输入
-    int* data = new int[DATA_NUM];
+    int* data;
     #ifdef SOURCE_DIR
         string path(SOURCE_DIR);
         path += "/resources/data.json";
@@ -60,8 +60,11 @@ int main(int argc, const char* argv[]) {
     long timeuse = end.tv_sec - start.tv_sec;
     cout << "generate share and send the keys: " << timeuse << "s" << endl;
     cout << "generate shares and send the keys: " << timeuse_u << "us" << endl;
-    //  delete[] data;
-    //  delete[] share;
+     delete[] data;
+     for(int i = 0; i < server_size; i++) {
+        delete[] share[i];
+     }
+     delete[] share;
 
     return 0;
 }

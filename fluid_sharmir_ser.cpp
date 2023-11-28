@@ -1,7 +1,7 @@
 #include <iostream>
 #include "io/fluid_sharmir_server.h"
 
-#define DATA_NUM 100
+#define DATA_NUM 10000000
 
 using namespace std;
 

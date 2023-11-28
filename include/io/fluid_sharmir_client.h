@@ -22,7 +22,9 @@ public:
         get_random_seed(this->keys);
         cout << "The client has been initiated" << endl;
     }
-    ~FluidSharmirClient() {}
+    ~FluidSharmirClient() {
+        delete[] this->polynomial_coefficient;
+    }
 
     // 获取随机数作为为随机数生成器的种子
     void get_random_seed(block& seed){
@@ -50,7 +52,7 @@ public:
     }
 
     // 获取int型数据
-    void get_dataset(string filepath, int* data, int data_num){
+    void get_dataset(string filepath, int* &data, int data_num){
         ifstream file(filepath);
         if(!file.is_open()) {
             cout << "File can not be opend" << endl;
@@ -63,6 +65,7 @@ public:
             cout << "There is not enough data" << endl;
         }
 
+        data = new int[data_num];
         for(int i = 0; i < data_num; i++) {
             *(data+i) = dataset[i].asInt();
         }
