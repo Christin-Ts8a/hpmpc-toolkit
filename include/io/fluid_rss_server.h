@@ -139,14 +139,41 @@ public:
         cout << "shares receiving finished" << endl;
     }
 
-    void get_triples_rss(block** a, block** b, block* c, const int triples_num) {
+    void get_triples_rss(block** &a, block** &b, block* &c, const int triples_num) {
         a = new block*[this->key_size];
         b = new block*[this->key_size];
         c = new block[this->key_size];
+        memset(c, 0, sizeof(block) * this->key_size);
 
         for(int i = 0; i < this->key_size; i++) {
             *a = new block[triples_num];
             *b = new block[triples_num];
+            this->prgs[i].random_block(a[i], triples_num);
+            this->prgs[i].random_block(b[i], triples_num);
+        }
+
+        Value mappings;
+        #ifdef SOURCE_DIR
+            string path(SOURCE_DIR);
+            path += "/resources/rho.json";
+            ifstream ifs(path);
+            ifs >> mappings;
+        #else
+            cerr << "There is no base path" << endl;
+            return;
+        #endif
+        string index = to_string(this->server_size) + "-party";
+        Value mapping = mappings[index];
+        Value rho = mapping[this->server_id];
+        for(int i = 0; i < triples_num; i++) {
+            block temp;
+            memset(&temp, 0, sizeof(block));
+            for(int j = 0; j < rho.size(); j++) {
+                for(int k = 0; k < rho[j].size(); k++) {
+                    temp += a[j][i] * b[k][i];
+                }
+            }
+            c[i] += temp;
         }
     }
 

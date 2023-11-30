@@ -63,7 +63,7 @@ public:
     }
 
     // 获取int型数据
-    void get_dataset(string filepath, int* data, int data_num){
+    void get_dataset(string filepath, int* &data, int data_num){
         ifstream file(filepath);
         if(!file.is_open()) {
             cout << "File can not be opend" << endl;
@@ -88,22 +88,8 @@ public:
     // long get_dataset(string filepath, double* data);
 
     // 生成数据对应的份额
-    void get_shares_from_dataset(block* shares, const int* data, const int data_num){
-        for(int i = 0; i < data_num; i++) {
-            block temp_sum;
-            memset(&temp_sum, 0, sizeof(block));
-            for(int j = 0; j < this->key_size; j++) {
-                block temp;
-                PRG prg(&(this->keys[j]));
-                prg.random_block(&temp);
-                temp_sum += temp;
-            }
-            shares[i] = data[i] - temp_sum;
-        }
-    }
-
-    // 生成数据对应的份额
-    void get_shares_from_dataset(block* shares, const long* data, const int data_num){
+    void get_shares_from_dataset(block* &shares, int* &data, const int data_num){
+        shares = new block[data_num];
         for(int i = 0; i < data_num; i++) {
             block temp_sum;
             memset(&temp_sum, 0, sizeof(block));
@@ -117,7 +103,23 @@ public:
         }
     }
 
-    void get_shares_from_dataset_traditional(block** shares, const int* data, const int data_num){
+    // 生成数据对应的份额
+    void get_shares_from_dataset(block* &shares, long* &data, const int data_num){
+        shares = new block[data_num];
+        for(int i = 0; i < data_num; i++) {
+            block temp_sum;
+            memset(&temp_sum, 0, sizeof(block));
+            for(int j = 1; j < this->key_size; j++) {
+                block temp;
+                PRG prg(&(this->keys[j]));
+                prg.random_block(&temp);
+                temp_sum += temp;
+            }
+            shares[i] = data[i] - temp_sum;
+        }
+    }
+
+    void get_shares_from_dataset_traditional(block** &shares, int* &data, const int data_num){
         for(int i = 0; i < data_num; i++) {
             block temp_sum;
             memset(&temp_sum, 0, sizeof(block));

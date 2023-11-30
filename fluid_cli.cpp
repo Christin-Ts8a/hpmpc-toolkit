@@ -49,21 +49,21 @@ int main(int argc, const char* argv[]) {
     struct timeval start, end;
     gettimeofday(&start, NULL);
     // 生成输入对应份额
-    // block* share = new block[DATA_NUM];
-    // cli.get_shares_from_dataset(share, data, DATA_NUM);
-    block** share;
-    int threshould = server_size % 2 == 0 ? (server_size / 2 - 1) : (server_size / 2);
-    int share_num = C(threshould, server_size);
-    share = new block*[share_num];
-    for(int i = 0; i < share_num; i++) {
-        share[i] = new block[DATA_NUM];
-    }
-    cli.get_shares_from_dataset_traditional(share, data, DATA_NUM);
+    block* share;
+    cli.get_shares_from_dataset(share, data, DATA_NUM);
+    // block** share;
+    // int threshould = server_size % 2 == 0 ? (server_size / 2 - 1) : (server_size / 2);
+    // int share_num = C(threshould, server_size);
+    // share = new block*[share_num];
+    // for(int i = 0; i < share_num; i++) {
+    //     share[i] = new block[DATA_NUM];
+    // }
+    // cli.get_shares_from_dataset_traditional(share, data, DATA_NUM);
 
 
     // 向服务器发送密钥以及份额
     // cli.send_data_to_server(share, DATA_NUM);
-    cli.send_data_to_server_traditional(share, DATA_NUM);
+    // cli.send_data_to_server_traditional(share, DATA_NUM);
     gettimeofday(&end, NULL);
     long timeuse_u = end.tv_usec - start.tv_usec;
     long timeuse = end.tv_sec - start.tv_sec;
@@ -71,8 +71,6 @@ int main(int argc, const char* argv[]) {
     cout << "generate shares and send the keys: " << timeuse_u << "us" << endl;
     cout << "start: " << start.tv_sec << "s " << start.tv_usec << "us" << endl;
     cout << "end: " << end.tv_sec << "s " << end.tv_usec << "us" << endl;
-     delete[] data;
-     delete[] share;
 
     return 0;
 }
