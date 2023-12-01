@@ -177,6 +177,132 @@ public:
         }
     }
 
+    void triples_permutation(block** &a, block ** &b, block* &c, int triples_num) {
+        block **index_per = new block*[this->key_size];
+        for(int i = 0; i < this->key_size; i++) {
+            index_per[i] = new block[triples_num];
+            this->prgs[i].random_block(index_per[i], triples_num);
+        }
+        Value mappings;
+        #ifdef SOURCE_DIR
+            string path(SOURCE_DIR);
+            path += "/resources/chi.json";
+            ifstream ifs(path);
+            ifs >> mappings;
+        #else
+            cerr << "There is no base path" << endl;
+        #endif
+        string index = to_string(this->committee_size) + "-party";
+        Value mapping = mappings[index];
+        Value chi = mapping[this->server_id];
+        for(int i = 0; i < chi["snd"].size(); i++) {
+            int committee_id = chi["snd"][i]["id"].asInt();
+            for(int j = 0; j < chi["snd"][i]["value"].size(); j++) {
+                int value_id = chi["snd"][i]["value"][j].asInt();
+                this->streams_snd_comm[committee_id]->send_data(index_per[value_id], sizeof(block) * triples_num);
+                this->streams_snd_comm[committee_id]->flush();
+            }
+        }
+        block** index_per_rcv = new block*[chi["rcv"].size()];
+        for(int i = 0; i < chi["rcv"].size(); i++) {
+            index_per_rcv[i] = new block[triples_num];
+            memset(index_per_rcv[i], 0, sizeof(block) * triples_num);
+            int committee_id = chi["rcv"][i]["id"].asInt();
+            for(int j = 0; j < chi["rcv"][i]["num"].asInt(); j++) {
+                block *index_temp = new block[triples_num];
+                this->streams_rcv_comm[committee_id]->recv_data(index_temp, sizeof(block) * triples_num);
+                for(int k = 0; k < triples_num; k++) {
+                    index_per_rcv[i][k] += index_temp[k];
+                }
+                delete[] index_temp;
+            }
+        }
+        block *index_res = new block[triples_num];
+        memset(index_res, 0, sizeof(block) * triples_num);
+        for(int i = 0; i < this->key_size; i++) {
+            for(int j = 0; j < triples_num; j++) {
+                index_res[j] += index_per[i][j];
+            }
+            delete[] index_per[i];
+        }
+        delete[] index_per;
+        for(int i = 0; i < chi["rcv"].size(); i++) {
+            for(int j = 0; j < triples_num; j++) {
+                index_res[j] += index_per_rcv[i][j];
+            }
+            delete[] index_per_rcv[i];
+        }
+        delete[] index_per_rcv;
+    }
+
+    void receive_connection_from_committee(int port_rcv) {
+        int socketfd = socket(AF_INET, SOCK_STREAM, 0);
+        if(socketfd == -1) {
+            cerr << "Prepare socket error" << endl;
+            close(socketfd);
+            return;
+        }
+        int reuse = 1;
+		setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse));
+        sockaddr_in ser;
+        // base on IPV4
+        ser.sin_family = AF_INET;
+        ser.sin_port = htons(port_rcv);
+        ser.sin_addr.s_addr = INADDR_ANY;
+        if(bind(socketfd, (struct sockaddr*)&ser, sizeof(ser)) == -1) {
+            cerr << "bind socket error" << endl;
+            close(socketfd);
+            return;
+        }
+        if(listen(socketfd, 1024) == -1) {
+            cerr << "listen socket error" << endl;
+            close(socketfd);
+            return;
+        }
+        for(int i = 0; i < this->committee_size - 1; i++) {
+            struct sockaddr_in cli;
+            // used to output size of client addr struct
+            socklen_t len = sizeof(cli);
+            int conn = accept(socketfd, (struct sockaddr*)&cli, &len);
+            if(conn == -1) {
+                cerr << "accept connect error" << endl;
+                close(socketfd);
+                return;
+            }
+            cout << "received a connection from " << inet_ntoa(cli.sin_addr) << ":" << cli.sin_port << endl;
+            this->streams_rcv_comm.push_back(new RecverSubChannel(conn));
+        }
+        close(socketfd);
+        cout << "All " << this->committee_size - 1 << " commmittee's member have been connected. The server has been initiated" << endl;
+    }
+
+    void get_connection_to_committee(vector<string> ips, vector<int> ports) {
+        struct sockaddr_in ser;
+        // base on IPV4
+        ser.sin_family = AF_INET;
+        for(int i = 0; i < this->committee_size - 1; i++) {
+            int socketfd = socket(AF_INET, SOCK_STREAM, 0);
+            if(socketfd == -1) {
+                cerr << "Prepare socket error" << endl;
+                return;
+            }
+            // character order transfer
+            ser.sin_port = htons(ports[i]);
+            ser.sin_addr.s_addr = inet_addr(ips[i].c_str());
+            cout << "start connecting committee: " << ips[i] << ":" << ports[i] << endl;
+            while(1) {
+                int conn = connect(socketfd, (struct sockaddr*)&ser, sizeof(ser));
+                if(conn == 0) {
+                    this->streams_snd_comm.push_back(new SenderSubChannel(socketfd));
+                    cout << "create a connection to the committee " << inet_ntoa(ser.sin_addr) << ":" << ports[i] << endl;
+                    break;
+                }
+                close(socketfd);
+            }
+            cout << "The " << i + 1 << "th committee has been connected" << endl;
+        }
+    }
+
 private:
     // 服务器序号
     int server_id;
