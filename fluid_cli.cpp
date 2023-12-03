@@ -4,6 +4,7 @@
 #include <emp-tool/emp-tool.h>
 #include <jsoncpp/json/json.h>
 #include "io/fluid_rss_client.h"
+#include "utils/math_utils.h"
 
 #define DATA_NUM 100
 
@@ -32,7 +33,7 @@ int main(int argc, const char* argv[]) {
             ips.push_back(value[i]["ip"].asString());
             ports.push_back(value[i]["port_rcv"].asInt());
         }
-        cli.get_connection_to_servers(ips, ports, server_size);
+        // cli.get_connection_to_servers(ips, ports, server_size);
     #endif
 
     // 生成随机数作为计算任务的输入
@@ -44,6 +45,7 @@ int main(int argc, const char* argv[]) {
         string path(SOURCE_DIR);
         path += "/resources/data.json";
         cli.get_dataset(path, data, DATA_NUM);
+        cout << "dataset has been read" << endl;
     #endif
     
     struct timeval start, end;
@@ -51,6 +53,7 @@ int main(int argc, const char* argv[]) {
     // 生成输入对应份额
     block* share;
     cli.get_shares_from_dataset(share, data, DATA_NUM);
+    cout << "shares generating has done" << endl;
     // block** share;
     // int threshould = server_size % 2 == 0 ? (server_size / 2 - 1) : (server_size / 2);
     // int share_num = C(threshould, server_size);

@@ -177,7 +177,7 @@ public:
         }
     }
 
-    void triples_permutation(block** &a, block ** &b, block* &c, int triples_num) {
+    void triples_permutation(block** &a, block ** &b, block* &c, block* &index_res, int triples_num) {
         block **index_per = new block*[this->key_size];
         for(int i = 0; i < this->key_size; i++) {
             index_per[i] = new block[triples_num];
@@ -217,7 +217,7 @@ public:
                 delete[] index_temp;
             }
         }
-        block *index_res = new block[triples_num];
+        index_res = new block[triples_num];
         memset(index_res, 0, sizeof(block) * triples_num);
         for(int i = 0; i < this->key_size; i++) {
             for(int j = 0; j < triples_num; j++) {
