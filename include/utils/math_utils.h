@@ -27,28 +27,34 @@ int power(int a, int b) {
     return res;
 }
 
-void shares_permutation(block *&init_shares, int n) {
-    vector<blocknode> sort_shares;
+void shares_permutation(block** &a, block** &b, block* &c, block *&init_index, int share_size, int triples_num) {
+    vector<blocknode> unsort_index;
     vector<int> sort_index;
-    for(int i = 0; i < n; i++) {
-        blocknode node(init_shares[i]);
-        sort_shares.push_back(node);
+    for(int i = 0; i < triples_num; i++) {
+        blocknode node(init_index[i]);
+        unsort_index.push_back(node);
     }
-    sort(sort_shares.begin(), sort_shares.end());
-    for(int i = 0; i < n; i++) {
-        auto it = find(sort_shares.begin(), sort_shares.end(), blocknode(init_shares[i]));
-        sort_index.push_back(distance(sort_shares.begin(), it));
+    sort(unsort_index.begin(), unsort_index.end());
+    for(int i = 0; i < triples_num; i++) {
+        auto it = find(unsort_index.begin(), unsort_index.end(), blocknode(init_index[i]));
+        sort_index.push_back(distance(unsort_index.begin(), it));
     }
-    for(int i = 0; i < n - 1; i++) {
-        for(int j = 0; j < n - 1 - i; j++){
-            if(sort_index[i] > j) {
-                int temp_index = sort_index[i];
-                sort_index[i] = sort_index[j];
-                sort_index[j] = temp_index;
+    for(int i = 0; i < triples_num - 1; i++) {
+        for(int j = 0; j < triples_num - 1 - i; j++){
+            if(sort_index[j] > sort_index[j + 1]) {
+                block tempc = c[j];
+                c[j] = c[j + 1];
+                c[j + 1] = tempc;
 
-                block temp_share = init_shares[i];
-                init_shares[i] = init_shares[j];
-                init_shares[j] = temp_share;
+                for(int k = 0; k < share_size; k++) {
+                    block temp = a[k][j];
+                    a[k][j] = a[k][j + 1];
+                    a[k][j + 1] = temp;
+
+                    temp = b[k][j];
+                    b[k][j] = b[k][j + 1];
+                    b[k][j + 1] = temp;
+                }
             }
         }
     }

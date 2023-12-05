@@ -2,9 +2,9 @@
 #include <fstream>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include "jsoncpp/json/json.h"
+#include <jsoncpp/json/json.h>
 #include <emp-tool/emp-tool.h>
-#include "../utils/math_utils.h"
+#include "utils/math_utils.h"
 
 using namespace std;
 using namespace emp;
@@ -69,7 +69,7 @@ public:
     }
 
     // 从客户端接受份额以及密钥
-    void receive_data_from_client(block** shares, const int data_num) {
+    void receive_data_from_client(block** &shares, const int data_num) {
         Value mappings;
         Value mapping;
         #ifdef SOURCE_DIR
@@ -86,6 +86,7 @@ public:
 
         // 从客户端接受份额
         if(find(mapping[0].begin(), mapping[0].end(), this->server_id) == mapping[0].end()) {
+            shares = new block*[this->streams_rcv_cli.size()];
             cout << "start receiving the shares from clients" << endl;
             for(int i = 0; i < this->streams_rcv_cli.size(); i++) {
                 shares[i] = new block[data_num];
@@ -111,46 +112,21 @@ public:
         }
     }
 
-    void receive_data_from_client_traditional(block** shares, const int data_num) {
-        Value mappings;
-        Value mapping;
-        #ifdef SOURCE_DIR
-            string path(SOURCE_DIR);
-            path += "/resources/mappings.json";
-            ifstream ifs(path);
-            ifs >> mappings;
-        #else
-            cerr << "There is no base path" << endl;
-            return;
-        #endif
-        string index = to_string(this->committee_size) + "-party";
-        mapping = mappings[index];
-
-        cout << "start receiving shares to clients" << endl;
-        for(int i = 0; i < this->streams_rcv_cli.size(); i++) {
-            for(int j = 0; j < mapping.size(); j++) {
-                if(find(mapping[j].begin(), mapping[j].end(), i) == mapping[j].end()) {
-                    shares[j] = new block[data_num];
-                    this->streams_rcv_cli[i]->recv_data(shares[j], data_num * sizeof(block));
-                    cout << "the receiving of the shares to the " << i + 1 << "th server has complished, the number of the sending shares: " << data_num << endl;
-                }
-            }
-        }
-        cout << "shares receiving finished" << endl;
-    }
-
+    // 获取乘法三元组([[a]], [[b]], [c])
     void get_triples_rss(block** &a, block** &b, block* &c, const int triples_num) {
+        cout << "start generate triples' RSS shares([[a]], [[b]], [c])" << endl;
         a = new block*[this->key_size];
         b = new block*[this->key_size];
         c = new block[this->key_size];
         memset(c, 0, sizeof(block) * this->key_size);
-
+        cout << "init triples by allocating space" << endl;
         for(int i = 0; i < this->key_size; i++) {
-            *a = new block[triples_num];
-            *b = new block[triples_num];
+            a[i] = new block[triples_num];
+            b[i] = new block[triples_num];
             this->prgs[i].random_block(a[i], triples_num);
             this->prgs[i].random_block(b[i], triples_num);
         }
+        cout << "the processing of generating ([[a]], [[b]]) has done" << endl;
 
         Value mappings;
         #ifdef SOURCE_DIR
@@ -175,14 +151,22 @@ public:
             }
             c[i] += temp;
         }
+        cout << "the process of computing ([c]) has done" << endl;
     }
 
-    void triples_permutation(block** &a, block ** &b, block* &c, block* &index_res, int triples_num) {
+    // 随机置换三元组
+    void triples_permutation(block** &a, block ** &b, block* &c, int triples_num) {
+        cout << "start permute the triples" << endl;
+        if(this->streams_rcv_comm.size() <= 0 || this->streams_snd_comm.size() <= 0) {
+            cerr << "未连接committee" << endl;
+            return;
+        }
         block **index_per = new block*[this->key_size];
         for(int i = 0; i < this->key_size; i++) {
             index_per[i] = new block[triples_num];
             this->prgs[i].random_block(index_per[i], triples_num);
         }
+        cout << "the shares of permutation index has been generated" << endl;
         Value mappings;
         #ifdef SOURCE_DIR
             string path(SOURCE_DIR);
@@ -195,6 +179,8 @@ public:
         string index = to_string(this->committee_size) + "-party";
         Value mapping = mappings[index];
         Value chi = mapping[this->server_id];
+        cout << "the " << this->committee_size << "-party mapping for sending shares of permutation index has been read" << endl;
+
         for(int i = 0; i < chi["snd"].size(); i++) {
             int committee_id = chi["snd"][i]["id"].asInt();
             for(int j = 0; j < chi["snd"][i]["value"].size(); j++) {
@@ -203,6 +189,8 @@ public:
                 this->streams_snd_comm[committee_id]->flush();
             }
         }
+        cout << "the shares of permutation index has been sent" << endl;
+
         block** index_per_rcv = new block*[chi["rcv"].size()];
         for(int i = 0; i < chi["rcv"].size(); i++) {
             index_per_rcv[i] = new block[triples_num];
@@ -217,7 +205,9 @@ public:
                 delete[] index_temp;
             }
         }
-        index_res = new block[triples_num];
+        cout << "the shares of permutation index has been received" << endl;
+
+        block* index_res = new block[triples_num];
         memset(index_res, 0, sizeof(block) * triples_num);
         for(int i = 0; i < this->key_size; i++) {
             for(int j = 0; j < triples_num; j++) {
@@ -233,6 +223,10 @@ public:
             delete[] index_per_rcv[i];
         }
         delete[] index_per_rcv;
+        cout << "the permutation index has been computated" << endl;
+
+        shares_permutation(a, b, c, index_res, this->key_size, triples_num);
+        cout << "the triples have been permuted" << endl;
     }
 
     void receive_connection_from_committee(int port_rcv) {

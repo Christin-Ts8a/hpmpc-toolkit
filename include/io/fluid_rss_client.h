@@ -75,6 +75,7 @@ public:
         if(data_num > dataset.size()) {
             cout << "There is not enough data" << endl;
         }
+        data = new int[data_num];
 
         for(int i = 0; i < data_num; i++) {
             *(data+i) = dataset[i].asInt();
@@ -178,7 +179,7 @@ public:
         string index = to_string(this->server_size) + "-party";
         Value mapping = mappings[index];
 
-        cout << "start sending shares to clients" << endl;
+        cout << "start sending shares to servers" << endl;
         // 发送特殊份额
         for(int i = 0; i < this->streams.size(); i++) {
             if(find(mapping[0].begin(), mapping[0].end(), i) == mapping[0].end()) {
@@ -190,7 +191,7 @@ public:
         cout << "shares sending finished" << endl;
 
         // 发送密钥
-        cout << "start sending keys to clients" << endl;
+        cout << "start sending keys to servers" << endl;
         for(int i = 0; i < this->streams.size(); i++) {
             int key_snd_num = C(this->threshold, this->server_size - 1);
             block key_snd[key_snd_num];
@@ -205,33 +206,6 @@ public:
             cout << "the sending of the keys to the "  << i + 1 << "th server has complished, the number of the sending keys: " << key_snd_num << endl;
         }
         cout << "keys sending finished" << endl;
-    }
-
-    void send_data_to_server_traditional(block** shares, const int data_num) {
-        Value mappings;
-        #ifdef SOURCE_DIR
-            string path(SOURCE_DIR);
-            path += "/resources/mappings.json";
-            ifstream file(path);
-            file >> mappings;
-        #else
-            cerr << "There is no base path" << endl;
-            return;
-        #endif
-        string index = to_string(this->server_size) + "-party";
-        Value mapping = mappings[index];
-
-        cout << "start sending shares to clients" << endl;
-        for(int i = 0; i < this->streams.size(); i++) {
-            for(int j = 0; j < mapping.size(); j++) {
-                if(find(mapping[j].begin(), mapping[j].end(), i) == mapping[j].end()) {
-                    this->streams[i]->send_data(shares[j], data_num * sizeof(block));
-                }
-            }
-            this->streams[i]->flush();
-            cout << "the sending of the shares to the " << i + 1 << "th server has complished, the number of the sending shares: " << data_num << endl;
-        }
-        cout << "shares sending finished" << endl;
     }
 
 private:
