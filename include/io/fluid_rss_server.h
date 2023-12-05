@@ -34,6 +34,7 @@ public:
             close(socketfd);
             return;
         }
+        // socket端口复用
         int reuse = 1;
 		setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, (const char *)&reuse, sizeof(reuse));
         sockaddr_in ser;
@@ -157,7 +158,7 @@ public:
     // 随机置换三元组
     void triples_permutation(block** &a, block ** &b, block* &c, int triples_num) {
         cout << "start permute the triples" << endl;
-        if(this->streams_rcv_comm.size() <= 0 || this->streams_snd_comm.size() <= 0) {
+        if(this->streams_rcv_comm.size() <= this->committee_size - 1 || this->streams_snd_comm.size() <= this->committee_size - 1) {
             cerr << "未连接committee" << endl;
             return;
         }
@@ -229,8 +230,13 @@ public:
         cout << "the triples have been permuted" << endl;
     }
 
-    void receive_connection_from_committee(int port_rcv) {
-        int socketfd = socket(AF_INET, SOCK_STREAM, 0);
+    void receive_connection_from_committee(int port_rcv, bool with_block) {
+        int socketfd;
+        if(with_block) {
+            socketfd = socket(AF_INET, SOCK_STREAM, 0);
+        } else {
+            socketfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+        }
         if(socketfd == -1) {
             cerr << "Prepare socket error" << endl;
             close(socketfd);
@@ -270,12 +276,17 @@ public:
         cout << "All " << this->committee_size - 1 << " commmittee's member have been connected. The server has been initiated" << endl;
     }
 
-    void get_connection_to_committee(vector<string> ips, vector<int> ports) {
+    void get_connection_to_committee(vector<string> ips, vector<int> ports, bool with_block) {
         struct sockaddr_in ser;
         // base on IPV4
         ser.sin_family = AF_INET;
         for(int i = 0; i < this->committee_size - 1; i++) {
-            int socketfd = socket(AF_INET, SOCK_STREAM, 0);
+            int socketfd;
+            if(with_block) {
+                socketfd = socket(AF_INET, SOCK_STREAM, 0);
+            } else {
+                socketfd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+            }
             if(socketfd == -1) {
                 cerr << "Prepare socket error" << endl;
                 return;

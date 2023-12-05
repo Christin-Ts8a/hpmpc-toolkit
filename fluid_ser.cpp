@@ -45,10 +45,10 @@ int main(int argc, const char* argv[]) {
     }
 
     // 接收committee连接
-    ser.receive_connection_from_committee(port_rcv);
+    ser.receive_connection_from_committee(port_rcv, false);
 
     // 连接committee
-    ser.get_connection_to_committee(ips, ports);
+    ser.get_connection_to_committee(ips, ports, false);
 
     ser.triples_permutation(a, b, c, DATA_NUM);
     // if(shares != NULL) {
