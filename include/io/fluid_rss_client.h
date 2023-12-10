@@ -142,16 +142,16 @@ public:
         // base on IPV4
         ser.sin_family = AF_INET;
         for(int i = 0; i < server_num; i++) {
-            int socketfd = socket(AF_INET, SOCK_STREAM, 0);
-            if(socketfd == -1) {
-                cerr << "Prepare socket error" << endl;
-                return;
-            }
             // character order transfer
             ser.sin_port = htons(ports[i]);
             ser.sin_addr.s_addr = inet_addr(ips[i].c_str());
             cout << "start connecting server: " << ips[i] << ":" << ports[i] << endl;
             while(1) {
+                int socketfd = socket(AF_INET, SOCK_STREAM, 0);
+                if(socketfd == -1) {
+                    cerr << "Prepare socket error" << endl;
+                    return;
+                }
                 int conn = connect(socketfd, (struct sockaddr*)&ser, sizeof(ser));
                 if(conn == 0) {
                     this->streams.push_back(new SenderSubChannel(socketfd));

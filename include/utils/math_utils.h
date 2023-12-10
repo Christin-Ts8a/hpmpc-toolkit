@@ -60,4 +60,17 @@ void shares_permutation(block** &a, block** &b, block* &c, block *&init_index, i
     }
 }
 
+bool block_equal(block &a, block &b) {
+    uint64_t a_val[2], b_val[2];
+    memcpy(a_val, &a, sizeof(a_val));
+    memcpy(b_val, &b, sizeof(b_val));
+    if(a_val[0] != b_val[0]) {
+        return false;
+    } else if(a_val[1] != b_val[1]) {
+        return false;
+    } else {
+        return true;
+    }
+}
+
 #endif

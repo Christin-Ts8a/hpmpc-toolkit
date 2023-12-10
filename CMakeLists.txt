@@ -15,5 +15,5 @@ find_package(emp-tool QUIET)
 
 target_link_libraries(client jsoncpp emp-tool)
 target_link_libraries(sharmir_client jsoncpp emp-tool)
-target_link_libraries(server jsoncpp emp-tool)
+target_link_libraries(server jsoncpp emp-tool pthread)
 target_link_libraries(sharmir_server jsoncpp emp-tool)

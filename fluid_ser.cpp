@@ -1,9 +1,23 @@
 #include <iostream>
+#include <pthread.h>
 #include "io/fluid_rss_server.h"
 
 #define DATA_NUM 100
 
 using namespace std;
+
+struct Connection {
+    FluidRSSServer& server;
+    int port_snd;
+    int port_rcv;
+};
+
+void* receive_committee(void* arg) {
+    cout << "this is child thread" << endl;
+    ((Connection*)arg)->server.receive_connection_from_committee(((Connection*)arg)->port_snd, ((Connection*)arg)->port_rcv);
+    cout << "================================" << endl;
+    return NULL;
+}
 
 int main(int argc, const char* argv[]) {
     if(argc < 6) {
@@ -38,19 +52,28 @@ int main(int argc, const char* argv[]) {
         ifs >> mappings;
     #endif
     vector<string> ips;
-    vector<int> ports;
+    vector<int> ports_snd;
+    vector<int> ports_rcv;
     for(int i = 0; i < committee_size; i++) {
         ips.push_back(mappings[i]["ip"].asString());
-        ports.push_back(mappings[i]["port_rcv"].asInt());
+        ports_snd.push_back(mappings[i]["port_snd"].asInt());
+        ports_rcv.push_back(mappings[i]["port_rcv"].asInt());
     }
 
     // 接收committee连接
-    ser.receive_connection_from_committee(port_rcv, false);
+    Connection connect = {ser, port_snd, port_rcv};
+    pthread_t receive_p;
+    pthread_create(&receive_p, NULL, receive_committee, &connect);
 
     // 连接committee
-    ser.get_connection_to_committee(ips, ports, false);
+    ser.get_connection_to_committee(ips, ports_snd, ports_rcv);
+    pthread_join(receive_p, NULL);
 
+    // 随机置换三元组
     ser.triples_permutation(a, b, c, DATA_NUM);
+
+    // 打开C个三元组验证
+    ser.verify_with_open(a, b, c, DATA_NUM);
     // if(shares != NULL) {
     //     for(int i = 0; i < share_num; i++) {
     //         delete[] shares[i];
