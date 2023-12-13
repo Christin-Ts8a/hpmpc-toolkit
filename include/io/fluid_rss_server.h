@@ -16,7 +16,7 @@ class FluidRSSServer {
 public:
     FluidRSSServer(int server_id, int committee_size, int client_size, int port_snd, int port_rcv)
         : server_id(server_id), committee_size(committee_size), client_size(client_size) {
-        int threshold = committee_size % 2 == 0 ? (committee_size / 2 - 1) : (committee_size / 2);
+        this->threshold = committee_size % 2 == 0 ? (committee_size / 2 - 1) : (committee_size / 2);
         this->key_size = C(threshold, this->committee_size - 1);
         for(int i = 0; i < this->client_size; i++) {
             block* temp_keys = new block[this->key_size];
@@ -160,7 +160,7 @@ public:
     // 随机置换三元组
     void triples_permutation(block** &a, block ** &b, block* &c, int triples_num) {
         cout << "start permute the triples" << endl;
-        if(this->streams_rcv_comm.size() < this->committee_size - 1 || this->streams_snd_comm.size() < this->committee_size - 1) {
+        if(this->streams_rcv_comm.size() < this->threshold || this->streams_snd_comm.size() < this->threshold) {
             cerr << "未连接committee" << endl;
             return;
         }
@@ -233,7 +233,7 @@ public:
         cout << "the triples have been permuted" << endl;
     }
 
-    void receive_connection_from_committee(int port_snd, int port_rcv) {
+    void receive_connection_from_committee_permute(int port_snd, int port_rcv, int connect_size) {
         cout << "start receiving connection from committee" << endl;
         
         int socketfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -260,7 +260,7 @@ public:
             return;
         }
         cout << "the socket has been listened" << endl;
-        for(int i = 0; i < this->committee_size - 1; i++) {
+        for(int i = 0; i < connect_size; i++) {
             struct sockaddr_in cli;
             // used to output size of client addr struct
             socklen_t len = sizeof(cli);
@@ -278,31 +278,13 @@ public:
         cout << "All " << this->committee_size - 1 << " commmittee's member have been connected. The server has been initiated" << endl;
     }
 
-    void get_connection_to_committee(vector<string> ips, vector<int> ports_rcv) {
+    void get_connection_to_committee_permute(vector<string> ips, vector<int> ports_rcv) {
         // 优先连接恢复明文时目标服务器，保证目标服务器的连接池前t个连接用于接收缺失的复制秘密份额
+        cout << "this threshould: " << this->threshold << endl;
         for(int i = 1; i <= this->threshold; i++) {
             int index = (this->server_id + i) % (this->committee_size);
             get_connection(ips[index], ports_rcv[index], this->streams_snd_comm);
         }
-        // // 确认剩余未连接服务器，用于广播消息
-        // int indexs[this->committee_size] = {0};
-        // for(int i = 0; i < this->committee_size; i++) {
-        //     if(this->server_id == i) {
-        //         indexs[i] = -1;
-        //     }
-        //     for(int j = 1; j <= this->threshold; j++) {
-        //         if(this->server_id + j == i) {
-        //             indexs[i] = -1;
-        //         }
-        //     }
-        // }
-        // // 连接剩余服务器
-        // for(int i = 0; i < this->committee_size; i++) {
-        //     if(indexs[i] == -1) {
-        //         continue;
-        //     }
-        //     get_connection(ips[i], ports_rcv[i], this->streams_snd_comm);
-        // }
     }
 
     bool verify_with_open(block** &a, block** &b, block* &c, int open_num) {

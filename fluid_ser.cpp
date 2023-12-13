@@ -10,11 +10,14 @@ struct Connection {
     FluidRSSServer& server;
     int port_snd;
     int port_rcv;
+    int threshould;
 };
 
-void* receive_committee(void* arg) {
+void* receive_committee_permute(void* arg) {
     cout << "this is child thread" << endl;
-    ((Connection*)arg)->server.receive_connection_from_committee(((Connection*)arg)->port_snd, ((Connection*)arg)->port_rcv);
+    ((Connection*)arg)->server.receive_connection_from_committee_permute(
+        ((Connection*)arg)->port_snd, ((Connection*)arg)->port_rcv, ((Connection*)arg)->threshould
+        );
     cout << "================================" << endl;
     return NULL;
 }
@@ -61,19 +64,19 @@ int main(int argc, const char* argv[]) {
     }
 
     // 接收committee连接
-    Connection connect = {ser, port_snd, port_rcv};
+    Connection connect = {ser, port_snd, port_rcv, threshould};
     pthread_t receive_p;
-    pthread_create(&receive_p, NULL, receive_committee, &connect);
+    pthread_create(&receive_p, NULL, receive_committee_permute, &connect);
 
     // 连接committee
-    ser.get_connection_to_committee(ips, ports_rcv);
+    ser.get_connection_to_committee_permute(ips, ports_rcv);
     pthread_join(receive_p, NULL);
 
     // 随机置换三元组
     ser.triples_permutation(a, b, c, DATA_NUM);
 
     // 打开C个三元组验证
-    // ser.verify_with_open(a, b, c, DATA_NUM);
+    ser.verify_with_open(a, b, c, DATA_NUM);
     // if(shares != NULL) {
     //     for(int i = 0; i < share_num; i++) {
     //         delete[] shares[i];
