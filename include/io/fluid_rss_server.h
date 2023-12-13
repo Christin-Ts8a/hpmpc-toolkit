@@ -284,25 +284,25 @@ public:
             int index = (this->server_id + i) % (this->committee_size);
             get_connection(ips[index], ports_rcv[index], this->streams_snd_comm);
         }
-        // 确认剩余未连接服务器，用于广播消息
-        int indexs[this->committee_size] = {0};
-        for(int i = 0; i < this->committee_size; i++) {
-            if(this->server_id == i) {
-                indexs[i] = -1;
-            }
-            for(int j = 1; j <= this->threshold; j++) {
-                if(this->server_id + j == i) {
-                    indexs[i] = -1;
-                }
-            }
-        }
-        // 连接剩余服务器
-        for(int i = 0; i < this->committee_size; i++) {
-            if(indexs[i] == -1) {
-                continue;
-            }
-            get_connection(ips[i], ports_rcv[i], this->streams_snd_comm);
-        }
+        // // 确认剩余未连接服务器，用于广播消息
+        // int indexs[this->committee_size] = {0};
+        // for(int i = 0; i < this->committee_size; i++) {
+        //     if(this->server_id == i) {
+        //         indexs[i] = -1;
+        //     }
+        //     for(int j = 1; j <= this->threshold; j++) {
+        //         if(this->server_id + j == i) {
+        //             indexs[i] = -1;
+        //         }
+        //     }
+        // }
+        // // 连接剩余服务器
+        // for(int i = 0; i < this->committee_size; i++) {
+        //     if(indexs[i] == -1) {
+        //         continue;
+        //     }
+        //     get_connection(ips[i], ports_rcv[i], this->streams_snd_comm);
+        // }
     }
 
     bool verify_with_open(block** &a, block** &b, block* &c, int open_num) {
