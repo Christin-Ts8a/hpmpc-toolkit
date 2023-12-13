@@ -1,5 +1,5 @@
-#ifndef MATH_UTILS
-#define MATH_UTILS
+#ifndef __MATH_UTILS_H
+#define __MATH_UTILS_H
 #include <set>
 #include <typeinfo>
 #include <emp-tool/emp-tool.h>

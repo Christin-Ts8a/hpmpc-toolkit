@@ -24,13 +24,13 @@ int main(int argc, const char* argv[]) {
         cerr << "at least 6 parameters: ./server <server_id> <committee_size> <client_size> <send port> <receive port>" << endl;
         return -1;
     }
-    int id =  atoi(argv[1]);
+    int server_id =  atoi(argv[1]);
     int committee_size = atoi(argv[2]);
     int client_size = atoi(argv[3]);
     int port_snd = atoi(argv[4]);
     int port_rcv = atoi(argv[5]);
     // 初始化服务器，并接收客户端连接
-    FluidRSSServer ser(id, committee_size, client_size, port_snd, port_rcv);
+    FluidRSSServer ser(server_id, committee_size, client_size, port_snd, port_rcv);
 
     // 接收客户端份额及密钥
     int threshould = committee_size % 2 == 0 ? (committee_size / 2 - 1) : (committee_size / 2);
@@ -66,14 +66,14 @@ int main(int argc, const char* argv[]) {
     pthread_create(&receive_p, NULL, receive_committee, &connect);
 
     // 连接committee
-    ser.get_connection_to_committee(ips, ports_snd, ports_rcv);
+    ser.get_connection_to_committee(ips, ports_rcv);
     pthread_join(receive_p, NULL);
 
     // 随机置换三元组
     ser.triples_permutation(a, b, c, DATA_NUM);
 
     // 打开C个三元组验证
-    ser.verify_with_open(a, b, c, DATA_NUM);
+    // ser.verify_with_open(a, b, c, DATA_NUM);
     // if(shares != NULL) {
     //     for(int i = 0; i < share_num; i++) {
     //         delete[] shares[i];

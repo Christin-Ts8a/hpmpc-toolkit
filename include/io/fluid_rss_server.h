@@ -5,6 +5,8 @@
 #include <jsoncpp/json/json.h>
 #include <emp-tool/emp-tool.h>
 #include "utils/math_utils.h"
+#include "utils/constant.h"
+#include "io/net.h"
 
 using namespace std;
 using namespace emp;
@@ -118,8 +120,8 @@ public:
         cout << "start generate triples' RSS shares([[a]], [[b]], [c])" << endl;
         a = new block*[this->key_size];
         b = new block*[this->key_size];
-        c = new block[this->key_size];
-        memset(c, 0, sizeof(block) * this->key_size);
+        c = new block[triples_num];
+        memset(c, 0, sizeof(block) * triples_num);
         cout << "init triples by allocating space" << endl;
         for(int i = 0; i < this->key_size; i++) {
             a[i] = new block[triples_num];
@@ -181,36 +183,30 @@ public:
         Value mapping = mappings[index];
         Value chi = mapping[this->server_id];
         cout << "the " << this->committee_size << "-party mapping for sending shares of permutation index has been read" << endl;
-        cout << "streams send comm size: " << this->streams_snd_comm.size() << endl;
-        cout << "streams receive comm size: " << this->streams_rcv_comm.size() << endl;
 
-        for(int i = 0; i < chi["snd"].size(); i++) {
-            int committee_id = chi["snd"][i]["id"].asInt();
-            cout << "committee_id snd: " << committee_id << endl;
-            for(int j = 0; j < chi["snd"][i]["value"].size(); j++) {
-                int value_id = chi["snd"][i]["value"][j].asInt();
-                this->streams_snd_comm[committee_id]->send_data(index_per[value_id], sizeof(block) * triples_num);
+        // chi的大小表示需要向几个目标服务器发送份额，需要接收份额的目标服务器连接位于连接池的头部
+        for(int i = 0; i < chi.size(); i++) {
+            // chi中的每个数组代表需要向目标服务器发送的份额下标
+            for(int j = 0; j < chi[i].size(); j++) {
+                int value_id = chi[i][j].asInt();
+                this->streams_snd_comm[i]->send_data(index_per[value_id], sizeof(block) * triples_num);
             }
-            this->streams_snd_comm[committee_id]->flush();
+            this->streams_snd_comm[i]->flush();
         }
         cout << "the shares of permutation index has been sent" << endl;
 
-        block** index_per_rcv = new block*[chi["rcv"].size()];
-        for(int i = 0; i < chi["rcv"].size(); i++) {
+        block** index_per_rcv = new block*[chi.size()];
+        for(int i = 0; i < chi.size(); i++) {
             index_per_rcv[i] = new block[triples_num];
             memset(index_per_rcv[i], 0, sizeof(block) * triples_num);
-            int committee_id = chi["rcv"][i]["id"].asInt();
-            cout << "committee_id rcv: " << committee_id << endl;
-            for(int j = 0; j < chi["rcv"][i]["num"].asInt(); j++) {
-                block *index_temp = new block[triples_num];
-                cout << "committee_rcv size: " << this->streams_rcv_comm.size() << endl;
-                this->streams_rcv_comm[committee_id]->recv_data(index_temp, sizeof(block) * triples_num);
-                cout << "committee_rcv1: " << j << endl;
+            block *index_temp = new block[triples_num];
+            for(int j = 0; j < chi[i].size(); j++) {
+                this->streams_rcv_comm[i]->recv_data(index_temp, sizeof(block) * triples_num);
                 for(int k = 0; k < triples_num; k++) {
                     index_per_rcv[i][k] += index_temp[k];
                 }
-                // delete[] index_temp;
             }
+            delete[] index_temp;
         }
         cout << "the shares of permutation index has been received" << endl;
 
@@ -220,16 +216,17 @@ public:
             for(int j = 0; j < triples_num; j++) {
                 index_res[j] += index_per[i][j];
             }
-            // delete[] index_per[i];
+            delete[] index_per[i];
         }
-        // delete[] index_per;
-        for(int i = 0; i < chi["rcv"].size(); i++) {
+        delete[] index_per;
+
+        for(int i = 0; i < chi.size(); i++) {
             for(int j = 0; j < triples_num; j++) {
                 index_res[j] += index_per_rcv[i][j];
             }
-            // delete[] index_per_rcv[i];
+            delete[] index_per_rcv[i];
         }
-        // delete[] index_per_rcv;
+        delete[] index_per_rcv;
         cout << "the permutation index has been computated" << endl;
 
         shares_permutation(a, b, c, index_res, this->key_size, triples_num);
@@ -281,33 +278,30 @@ public:
         cout << "All " << this->committee_size - 1 << " commmittee's member have been connected. The server has been initiated" << endl;
     }
 
-    void get_connection_to_committee(vector<string> ips, vector<int> ports_snd, vector<int> ports_rcv) {
-        struct sockaddr_in ser;
-        // base on IPV4
-        ser.sin_family = AF_INET;
+    void get_connection_to_committee(vector<string> ips, vector<int> ports_rcv) {
+        // 优先连接恢复明文时目标服务器，保证目标服务器的连接池前t个连接用于接收缺失的复制秘密份额
+        for(int i = 1; i <= this->threshold; i++) {
+            int index = (this->server_id + i) % (this->committee_size);
+            get_connection(ips[index], ports_rcv[index], this->streams_snd_comm);
+        }
+        // 确认剩余未连接服务器，用于广播消息
+        int indexs[this->committee_size] = {0};
         for(int i = 0; i < this->committee_size; i++) {
-            if(i == this->server_id) {
+            if(this->server_id == i) {
+                indexs[i] = -1;
+            }
+            for(int j = 1; j <= this->threshold; j++) {
+                if(this->server_id + j == i) {
+                    indexs[i] = -1;
+                }
+            }
+        }
+        // 连接剩余服务器
+        for(int i = 0; i < this->committee_size; i++) {
+            if(indexs[i] == -1) {
                 continue;
             }
-            // character order transfer
-            ser.sin_port = htons(ports_rcv[i]);
-            ser.sin_addr.s_addr = inet_addr(ips[i].c_str());
-            cout << "start connecting committee: " << ips[i] << ":" << ports_rcv[i] << endl;
-            while(1) {
-                int socketfd = socket(AF_INET, SOCK_STREAM, 0);
-                if(socketfd == -1) {
-                    cerr << "Prepare socket error" << endl;
-                    return;
-                }
-                int conn = connect(socketfd, (struct sockaddr*)&ser, sizeof(ser));
-                if(conn == 0) {
-                    this->streams_snd_comm.push_back(new SenderSubChannel(socketfd));
-                    cout << "create a connection to the committee " << inet_ntoa(ser.sin_addr) << ":" << ports_rcv[i] << endl;
-                    break;
-                }
-                close(socketfd);
-            }
-            cout << "The " << i + 1 << "th committee has been connected" << endl;
+            get_connection(ips[i], ports_rcv[i], this->streams_snd_comm);
         }
     }
 
@@ -433,9 +427,32 @@ public:
         return true;
     }
 
-    bool verity_without_open(block** &a, block** &b, block* &c, int multi_num, int triples_num) {
-        block** rho;
-        block** sigma;
+    bool verity_without_open(block** &a, block** &b, block* &c, int triples_num) {
+        // 分享[c]，将其变为复制秘密份额[[c]]
+        
+        // 桶数量
+        int bucket_num = TRIPLES_VERIFY_B / triples_num;
+        for(int i = 0; i < bucket_num; i++) {
+            block** bucket_a = new block*[this->key_size];
+            block** bucket_b = new block*[this->key_size];
+            block* bucket_c = new block[TRIPLES_VERIFY_B];
+            block** bucket_rho = new block*[this->key_size];
+            for(int j = 0; j < TRIPLES_VERIFY_B; j++) {
+                for(int k = 0; k < this->key_size; k++) {
+                    bucket_a[k][j] = a[k + i * TRIPLES_VERIFY_B][j];
+                    bucket_b[k][j] = b[k + i * TRIPLES_VERIFY_B][j];
+                }
+                bucket_c[j] = c[j];
+            }
+        }
+        block** rho = new block*[this->key_size];
+        block** sigma = new block*[this->key_size];
+        for(int i = 0; i < this->key_size; i++) {
+            rho[i] = new block[triples_num];
+            for(int j = 0; j < triples_num; j++) {
+                rho[i][j] = a[i][j];
+            }
+        }
         return true;
     }
 
