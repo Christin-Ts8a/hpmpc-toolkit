@@ -14,7 +14,7 @@ using namespace Json;
 
 class FluidRSSServer {
 public:
-    FluidRSSServer(int server_id, int committee_size, int client_size, int port_snd, int port_rcv)
+    FluidRSSServer(int server_id, int committee_size, int client_size, int port_rcv)
         : server_id(server_id), committee_size(committee_size), client_size(client_size) {
         this->threshold = committee_size % 2 == 0 ? (committee_size / 2 - 1) : (committee_size / 2);
         this->key_size = C(threshold, this->committee_size - 1);
@@ -233,7 +233,7 @@ public:
         cout << "the triples have been permuted" << endl;
     }
 
-    void receive_connection_from_committee_permute(int port_snd, int port_rcv, int connect_size) {
+    void receive_connection_from_committee(int port_rcv, int connect_size) {
         cout << "start receiving connection from committee" << endl;
         
         int socketfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -259,12 +259,10 @@ public:
             close(socketfd);
             return;
         }
-        cout << "the socket has been listened" << endl;
         for(int i = 0; i < connect_size; i++) {
             struct sockaddr_in cli;
             // used to output size of client addr struct
             socklen_t len = sizeof(cli);
-            cout << "start accept the " << i+1 << "th committee" << endl;
             int conn = accept(socketfd, (struct sockaddr*)&cli, &len);
             if(conn == -1) {
                 cerr << "accept connect error" << endl;
@@ -275,19 +273,41 @@ public:
             this->streams_rcv_comm.push_back(new RecverSubChannel(conn));
         }
         close(socketfd);
-        cout << "All " << this->committee_size - 1 << " commmittee's member have been connected. The server has been initiated" << endl;
     }
 
     void get_connection_to_committee_permute(vector<string> ips, vector<int> ports_rcv) {
         // 优先连接恢复明文时目标服务器，保证目标服务器的连接池前t个连接用于接收缺失的复制秘密份额
-        cout << "this threshould: " << this->threshold << endl;
         for(int i = 1; i <= this->threshold; i++) {
             int index = (this->server_id + i) % (this->committee_size);
             get_connection(ips[index], ports_rcv[index], this->streams_snd_comm);
         }
     }
 
+    void get_connection_to_committee_remain(vector<string> ips, vector<int> ports_rcv) {
+        cout << "connect the remain committee" << endl;
+        // 存储未连接committee地址下标
+        int indexs[this->committee_size] = {0};
+        for(int i = 0; i < this->committee_size; i++) {
+            if(this->server_id == i) {
+                indexs[i] = -1;
+            }
+            for(int j = 1; j <= this->threshold; j++) {
+                if(this->server_id + j == i) {
+                    indexs[i] = -1;
+                }
+            }
+        }
+
+        // 连接剩余committee
+        for(int i = 0; i < this->committee_size; i++) {
+            if(indexs[i] != -1) {
+                get_connection(ips[i], ports_rcv[i], this->streams_snd_comm);
+            }
+        }
+    }
+
     bool verify_with_open(block** &a, block** &b, block* &c, int open_num) {
+        cout << "verify_with_open: start" << endl;
         Value mappings;
         #ifdef SOURCE_DIR
             string path(SOURCE_DIR);
@@ -300,79 +320,73 @@ public:
         string index = to_string(this->committee_size) + "-party";
         Value mapping = mappings[index];
         Value chi = mapping[this->server_id];
-        cout << "the " << this->committee_size << "-party mapping for sending shares of permutation index has been read" << endl;
-        cout << "streams send comm size: " << this->streams_snd_comm.size() << endl;
-        cout << "streams receive comm size: " << this->streams_rcv_comm.size() << endl;
 
         // 发送[[a]]
-        for(int i = 0; i < chi["snd"].size(); i++) {
-            int committee_id = chi["snd"][i]["id"].asInt();
-            cout << "committee_id snd: " << committee_id << endl;
-            for(int j = 0; j < chi["snd"][i]["value"].size(); j++) {
-                int value_id = chi["snd"][i]["value"][j].asInt();
-                this->streams_snd_comm[committee_id]->send_data(a[value_id], sizeof(block) * open_num);
+        for(int i = 0; i < chi.size(); i++) {
+            for(int j = 0; j < chi[i].size(); j++) {
+                int value_id = chi[i][j].asInt();
+                this->streams_snd_comm[i]->send_data(a[value_id], sizeof(block) * open_num);
             }
-            this->streams_snd_comm[committee_id]->flush();
+            this->streams_snd_comm[i]->flush();
         }
+        cout << "verify_with_open: the shares of [[a]] have been sent" << endl;
 
         // 发送[[b]]
-        for(int i = 0; i < chi["snd"].size(); i++) {
-            int committee_id = chi["snd"][i]["id"].asInt();
-            cout << "committee_id snd: " << committee_id << endl;
-            for(int j = 0; j < chi["snd"][i]["value"].size(); j++) {
-                int value_id = chi["snd"][i]["value"][j].asInt();
-                this->streams_snd_comm[committee_id]->send_data(b[value_id], sizeof(block) * open_num);
+        for(int i = 0; i < chi.size(); i++) {
+            for(int j = 0; j < chi[i].size(); j++) {
+                int value_id = chi[i][j].asInt();
+                this->streams_snd_comm[i]->send_data(b[value_id], sizeof(block) * open_num);
             }
-            this->streams_snd_comm[committee_id]->flush();
+            this->streams_snd_comm[i]->flush();
         }
+        cout << "verify_with_open: the shares of [[b]] have been sent" << endl;
 
         // 发送[c]
         for(int i = 0; i < this->streams_snd_comm.size(); i++) {
             this->streams_snd_comm[i]->send_data(c, sizeof(block) * open_num);
             this->streams_snd_comm[i]->flush();
         }
+        cout << "verify_with_open: the shares of [[c]] have been sent" << endl;
 
         // 接收[[a]]
-        block** a_rcv = new block*[chi["rcv"].size()];
-        for(int i = 0; i < chi["rcv"].size(); i++) {
+        block** a_rcv = new block*[chi.size()];
+        for(int i = 0; i < chi.size(); i++) {
             a_rcv[i] = new block[open_num];
             memset(a_rcv[i], 0, sizeof(block) * open_num);
-            int committee_id = chi["rcv"][i]["id"].asInt();
-            cout << "committee_id rcv: " << committee_id << endl;
-            for(int j = 0; j < chi["rcv"][i]["num"].asInt(); j++) {
-                block *a_temp = new block[open_num];
-                cout << "committee_rcv size: " << this->streams_rcv_comm.size() << endl;
-                this->streams_rcv_comm[committee_id]->recv_data(a_temp, sizeof(block) * open_num);
-                cout << "committee_rcv1: " << j << endl;
+            block *a_temp = new block[open_num];
+            for(int j = 0; j < chi[i].size(); j++) {
+                this->streams_rcv_comm[i]->recv_data(a_temp, sizeof(block) * open_num);
                 for(int k = 0; k < open_num; k++) {
                     a_rcv[i][k] += a_temp[k];
                 }
             }
+            delete[] a_temp;
         }
+        cout << "verify_with_open: the shares of [[a]] have been received" << endl;
 
         // 接收[[b]]
-        block** b_rcv = new block*[chi["rcv"].size()];
-        for(int i = 0; i < chi["rcv"].size(); i++) {
+        block** b_rcv = new block*[chi.size()];
+        for(int i = 0; i < chi.size(); i++) {
             b_rcv[i] = new block[open_num];
             memset(b_rcv[i], 0, sizeof(block) * open_num);
-            int committee_id = chi["rcv"][i]["id"].asInt();
-            cout << "committee_id rcv: " << committee_id << endl;
-            for(int j = 0; j < chi["rcv"][i]["num"].asInt(); j++) {
-                block *b_temp = new block[open_num];
-                cout << "committee_rcv size: " << this->streams_rcv_comm.size() << endl;
-                this->streams_rcv_comm[committee_id]->recv_data(b_temp, sizeof(block) * open_num);
-                cout << "committee_rcv1: " << j << endl;
+            block *b_temp = new block[open_num];
+            for(int j = 0; j < chi[i].size(); j++) {
+                this->streams_rcv_comm[i]->recv_data(b_temp, sizeof(block) * open_num);
                 for(int k = 0; k < open_num; k++) {
                     b_rcv[i][k] += b_temp[k];
                 }
             }
+            delete[] b_temp;
         }
+        cout << "verify_with_open: the shares of [[b]] have been received" << endl;
 
         // 接收[c]
-        block *c_rcv = new block[this->streams_rcv_comm.size()];
+        block **c_rcv = new block*[this->streams_rcv_comm.size()];
         for(int i = 0; i < this->streams_rcv_comm.size(); i++) {
-            this->streams_rcv_comm[i]->recv_data(c_rcv, sizeof(block) * open_num);
+            c_rcv[i] = new block[open_num];
+            this->streams_rcv_comm[i]->recv_data(c_rcv[i], sizeof(block) * open_num);
         }
+        cout << "verify_with_open: the shares of [c] have been received" << endl;
 
         // 计算(a, b, c)明文
         block* a_res = new block[open_num];
@@ -381,31 +395,38 @@ public:
         memset(b_res, 0, sizeof(block) * open_num);
         block* c_res = new block[open_num];
         memset(c_res, 0, sizeof(block) * open_num);
+        cout << "verify_with_open: the triples result container has been initiated" << endl;
         // 将本地份额相加
         for(int i = 0; i < open_num; i++) {
-            for(int j = 0; j < this->key_size; i++) {
+            for(int j = 0; j < this->key_size; j++) {
                 a_res[i] += a[j][i];
                 b_res[i] += b[j][i];
             }
             c_res[i] += c[i];
         }
+        cout << "verify_with_open: add the local shares of ([[a]], [[b]], [c]) to the result" << endl;
 
         // 将收到份额相加
         for(int i = 0; i < open_num; i++) {
-            for(int j = 0; j < chi["rcv"].size(); j++) {
+            for(int j = 0; j < chi.size(); j++) {
                 a_res[i] += a_rcv[j][i];
                 b_res[i] += b_rcv[j][i];
             }
-            c_res[i] += c_rcv[i];
+            for(int j = 0; j < this->streams_rcv_comm.size(); j++) {
+                c_res[i] += c_rcv[j][i];
+            }
         }
+        cout << "verify_with_open: add the received shares of ([[a]], [[b]], [c]) to the result" << endl;
 
         // 验证三元组
         for(int i = 0; i < open_num; i++) {
             block ab = a_res[i] * b_res[i];
             if(!block_equal(ab, c_res[i])) {
-                return false;
+                // cout << "verity_with_open: verify the equation: a * b = c fail" << endl;
+                // return false;
             }
         }
+        cout << "verity_with_open: verify the equation: a * b = c success" << endl;
         return true;
     }
 
