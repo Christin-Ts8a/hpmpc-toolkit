@@ -6,7 +6,7 @@
 #include "io/fluid_rss_client.h"
 #include "utils/math_utils.h"
 
-#define DATA_NUM 100
+#define DATA_NUM 1000000
 
 using namespace std;
 using namespace emp;

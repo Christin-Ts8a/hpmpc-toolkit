@@ -1,8 +1,10 @@
 #include <iostream>
 #include <pthread.h>
+#include <sys/time.h>
 #include "io/fluid_rss_server.h"
+#include "utils/constant.h"
 
-#define DATA_NUM 100
+#define DATA_NUM 1000000
 
 using namespace std;
 
@@ -34,6 +36,9 @@ int main(int argc, const char* argv[]) {
     // 初始化服务器，并接收客户端连接
     FluidRSSServer ser(server_id, committee_size, client_size, port_rcv);
 
+    struct timeval start, end;
+    gettimeofday(&start, NULL);
+
     // 接收客户端份额及密钥
     int threshould = committee_size % 2 == 0 ? (committee_size / 2 - 1) : (committee_size / 2);
     int share_num = C(threshould, committee_size);
@@ -44,7 +49,7 @@ int main(int argc, const char* argv[]) {
     block** a = NULL;
     block** b = NULL;
     block* c = NULL;
-    ser.get_triples_rss(a, b, c, DATA_NUM);
+    ser.get_triples_rss(a, b, c, DATA_NUM * TRIPLES_VERIFY_B + TRIPLES_VERIFY_C);
 
     Value mappings;
     #ifdef SOURCE_DIR
@@ -70,7 +75,7 @@ int main(int argc, const char* argv[]) {
     pthread_join(receive_permute, NULL);
 
     // 随机置换三元组
-    ser.triples_permutation(a, b, c, DATA_NUM);
+    ser.triples_permutation(a, b, c, DATA_NUM * TRIPLES_VERIFY_B + TRIPLES_VERIFY_C);
 
     // 接收剩余committee连接
     Connection connect_remain = {ser, port_rcv, committee_size - threshould - 1};
@@ -82,7 +87,15 @@ int main(int argc, const char* argv[]) {
     pthread_join(receive_remain, NULL);
 
     // 打开C个三元组验证
-    ser.verify_with_open(a, b, c, DATA_NUM);
+    // ser.verify_with_open(a, b, c, DATA_NUM);
+
+    // 验证剩余三元组
+    // ser.verity_without_open(a, b, c, DATA_NUM * TRIPLES_VERIFY_B);
+    gettimeofday(&end, NULL);
+    long timeuse_u = end.tv_usec - start.tv_usec;
+    long timeuse = end.tv_sec - start.tv_sec;
+    cout << "generate share and send the keys: " << timeuse << "s" << endl;
+    cout << "generate shares and send the keys: " << timeuse_u << "us" << endl;
     // if(shares != NULL) {
     //     for(int i = 0; i < share_num; i++) {
     //         delete[] shares[i];

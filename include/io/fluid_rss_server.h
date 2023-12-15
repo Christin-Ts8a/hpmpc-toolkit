@@ -277,6 +277,7 @@ public:
 
     void get_connection_to_committee_permute(vector<string> ips, vector<int> ports_rcv) {
         // 优先连接恢复明文时目标服务器，保证目标服务器的连接池前t个连接用于接收缺失的复制秘密份额
+        cout << "get_connection_to_committee_permute: start" << endl;
         for(int i = 1; i <= this->threshold; i++) {
             int index = (this->server_id + i) % (this->committee_size);
             get_connection(ips[index], ports_rcv[index], this->streams_snd_comm);
@@ -284,7 +285,7 @@ public:
     }
 
     void get_connection_to_committee_remain(vector<string> ips, vector<int> ports_rcv) {
-        cout << "connect the remain committee" << endl;
+        cout << "get_connection_to_committee_remain: start" << endl;
         // 存储未连接committee地址下标
         int indexs[this->committee_size] = {0};
         for(int i = 0; i < this->committee_size; i++) {
@@ -292,11 +293,12 @@ public:
                 indexs[i] = -1;
             }
             for(int j = 1; j <= this->threshold; j++) {
-                if(this->server_id + j == i) {
+                if(((this->server_id + j) % this->committee_size) == i) {
                     indexs[i] = -1;
                 }
             }
         }
+        cout << "get_connection_to_committee_remain: select the committee unconnected" << endl;
 
         // 连接剩余committee
         for(int i = 0; i < this->committee_size; i++) {
@@ -304,8 +306,10 @@ public:
                 get_connection(ips[i], ports_rcv[i], this->streams_snd_comm);
             }
         }
+        cout << "get_connection_to_committee_remain: connect the committee remain finished" << endl;
     }
 
+    // TODO: 此部分应当公开C个三元组并验证完毕后删除公开三元组
     bool verify_with_open(block** &a, block** &b, block* &c, int open_num) {
         cout << "verify_with_open: start" << endl;
         Value mappings;
@@ -419,6 +423,7 @@ public:
         cout << "verify_with_open: add the received shares of ([[a]], [[b]], [c]) to the result" << endl;
 
         // 验证三元组
+        // FIXME: 此部分验证出现错误
         for(int i = 0; i < open_num; i++) {
             block ab = a_res[i] * b_res[i];
             if(!block_equal(ab, c_res[i])) {
@@ -431,31 +436,81 @@ public:
     }
 
     bool verity_without_open(block** &a, block** &b, block* &c, int triples_num) {
+        cout << "verity_without_open: start" << endl;
         // 分享[c]，将其变为复制秘密份额[[c]]
-        
+        block** c_snd = new block*[this->key_size];
+        for(int i = 0; i < this->key_size; i++) {
+            if(i == 0) {
+                c_snd[i] = new block[triples_num];
+                memcpy(c_snd[i], c, sizeof(block) * triples_num);
+                continue;
+            }
+            c_snd[i] = new block[triples_num];
+            this->prgs[i].random_block(c_snd[i], triples_num);
+        }
+        cout << "verity_without_open: generate RSS shares" << endl;
+        for(int i = 0; i < this->key_size; i++) {
+            for(int j = 0; j < triples_num; j++) {
+                c_snd[0][j] -= c_snd[i][j];
+            }
+        }
+        cout << "verity_without_open: compute selected shares" << endl;
+        // 向目标服务器发送[[c]]的份额
+        // TODO: 向缺少本方第一个密钥的服务器发送份额，现向缺少RSS份额的服务器发送
+        for(int i = 0; i < this->threshold; i++) {
+            this->streams_snd_comm[i]->send_data(c_snd[0], sizeof(block) * triples_num);
+            this->streams_snd_comm[i]->flush();
+        }
+        cout << "verity_without_open: resharing [c] and forming the [[c]]" << endl;
+        // TODO: 计算分享后的[[c]]，现忽略此部分 
         // 桶数量
         int bucket_num = TRIPLES_VERIFY_B / triples_num;
+        // 计算rho以及sigma
+        // TODO: 此部分应使用分享后的[[c]]，现在使用本地拆分的[[c]]
         for(int i = 0; i < bucket_num; i++) {
+            // 分bucket，每个bucket大小为TRIPLES_VERIFY_B, 每个bucket包含key_size个份额
             block** bucket_a = new block*[this->key_size];
             block** bucket_b = new block*[this->key_size];
-            block* bucket_c = new block[TRIPLES_VERIFY_B];
+            block** bucket_c = new block*[this->key_size];
             block** bucket_rho = new block*[this->key_size];
-            for(int j = 0; j < TRIPLES_VERIFY_B; j++) {
-                for(int k = 0; k < this->key_size; k++) {
-                    bucket_a[k][j] = a[k + i * TRIPLES_VERIFY_B][j];
-                    bucket_b[k][j] = b[k + i * TRIPLES_VERIFY_B][j];
+            block** bucket_sigma = new block*[this->key_size];
+            for(int j = 0; j < this->key_size; j++) {
+                bucket_a[j] = new block[TRIPLES_VERIFY_B];
+                bucket_b[j] = new block[TRIPLES_VERIFY_B];
+                bucket_c[j] = new block[TRIPLES_VERIFY_B];
+                for(int k = 0; k < TRIPLES_VERIFY_B; k++) {
+                    bucket_a[j][k] = a[j][k + i * TRIPLES_VERIFY_B];
+                    bucket_b[j][k] = b[j][k + i * TRIPLES_VERIFY_B];
+                    bucket_c[j][k] = c_snd[j][k + i * TRIPLES_VERIFY_B];
                 }
-                bucket_c[j] = c[j];
+            }
+            for(int j = 0; j < this->key_size; j++) {
+                bucket_rho[j] = new block[TRIPLES_VERIFY_B - 1];
+                bucket_sigma[j] = new block[TRIPLES_VERIFY_B - 1];
+                for(int k = 1; k < TRIPLES_VERIFY_B; k++) {
+                    bucket_rho[j][k] = a[j][k] - a[j][k - 1];
+                    bucket_sigma[j][k] = b[j][k] - b[j][k - 1];
+                }
+            }
+            // 公开rho以及sigma
+            for(int j = 0; j < this->streams_snd_comm.size(); j++) {
+                this->streams_snd_comm[j]->send_data(bucket_rho, sizeof(block) * this->key_size * triples_num);
+                this->streams_snd_comm[j]->send_data(bucket_sigma, sizeof(block) * this->key_size * triples_num);
+                this->streams_snd_comm[j]->flush();
+            }
+            // 接收rho以及sigma
+            for(int j = 0; j < this->streams_snd_comm.size(); j++) {
+                this->streams_rcv_comm[j]->recv_data(bucket_rho, sizeof(block) * this->key_size * triples_num);
+                this->streams_rcv_comm[j]->recv_data(bucket_sigma, sizeof(block) * this->key_size * triples_num);
+            }
+            for(int j = 0; j < this->key_size; j++) {
+                for(int k = 1; k < TRIPLES_VERIFY_B; k++) {
+                    block r = bucket_c[j][k] - bucket_c[j][k - 1] - bucket_rho[j][k] * bucket_a[j][k] - bucket_sigma[j][k] * bucket_b[j][k] + bucket_rho[j][k] * bucket_sigma[j][k];
+                }
             }
         }
-        block** rho = new block*[this->key_size];
-        block** sigma = new block*[this->key_size];
-        for(int i = 0; i < this->key_size; i++) {
-            rho[i] = new block[triples_num];
-            for(int j = 0; j < triples_num; j++) {
-                rho[i][j] = a[i][j];
-            }
-        }
+        cout << "verity_without_open: rho and sigma have been computed" << endl;
+        
         return true;
     }
 
