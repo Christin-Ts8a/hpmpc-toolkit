@@ -92,6 +92,28 @@ public:
         share = data + temp;
     }
 
+    void get_sharmir_shares(block& share, block data, int base) {
+        block temp;
+        memset(&temp, 0, sizeof(block));
+        for(int i = 0; i < this->threshold; i++) {
+            int var = pow(base, i+1);
+            temp += this->polynomial_coefficient[i] * var;
+        }
+        share = data + temp;
+    }
+
+    void get_correlated_randomness(block **&randoms, const int data_num) {
+        block* secret = new block[data_num + 2];
+        PRG().random_block(secret, data_num + 2);
+        randoms = new block*[this->server_size];
+        for(int i = 0; i < this->server_size; ++i){
+            randoms[i] = new block[data_num + 2];
+            for(int j = 0; j < data_num + 2; ++j) {
+                get_sharmir_shares(randoms[i][j], secret[j], i+1);
+            }
+        }
+    }
+
     // 获取与服务器的连接
     void get_connection_to_servers(vector<string> ips, vector<int> ports, int server_num){
 

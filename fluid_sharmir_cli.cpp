@@ -5,7 +5,7 @@
 #include <jsoncpp/json/json.h>
 #include "io/fluid_sharmir_client.h"
 
-#define DATA_NUM 10000000
+#define DATA_NUM 100000
 
 using namespace std;
 using namespace emp;
@@ -52,9 +52,14 @@ int main(int argc, const char* argv[]) {
     block** share;
     cli.get_shares_from_dataset(share, data, DATA_NUM);
 
+    block** randomness;
+    cli.get_correlated_randomness(randomness, DATA_NUM);
 
-    // 向服务器发送密钥以及份额
+    // 向服务器发送份额
     cli.send_data_to_server(share, DATA_NUM);
+
+    // 向服务器发送随机数
+    cli.send_data_to_server(randomness, DATA_NUM + 2);
     gettimeofday(&end, NULL);
     long timeuse_u = end.tv_usec - start.tv_usec;
     long timeuse = end.tv_sec - start.tv_sec;

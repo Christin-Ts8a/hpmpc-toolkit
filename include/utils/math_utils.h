@@ -30,15 +30,19 @@ int power(int a, int b) {
 void shares_permutation(block** &a, block** &b, block* &c, block *&init_index, int share_size, int triples_num) {
     vector<blocknode> unsort_index;
     vector<int> sort_index;
+    cout << "shares_permutation: prepare unsorted index vector" << endl;
     for(int i = 0; i < triples_num; i++) {
         blocknode node(init_index[i]);
         unsort_index.push_back(node);
     }
+    cout << "shares_permutation: sort the unsorted index vector" << endl;
     sort(unsort_index.begin(), unsort_index.end());
+    cout << "shares_permutation: resort the vector accroding to the distance" << endl;
     for(int i = 0; i < triples_num; i++) {
         auto it = find(unsort_index.begin(), unsort_index.end(), blocknode(init_index[i]));
         sort_index.push_back(distance(unsort_index.begin(), it));
     }
+    cout << "shares_permutation: resort the triples" << endl;
     for(int i = 0; i < triples_num - 1; i++) {
         for(int j = 0; j < triples_num - 1 - i; j++){
             if(sort_index[j] > sort_index[j + 1]) {
@@ -58,6 +62,7 @@ void shares_permutation(block** &a, block** &b, block* &c, block *&init_index, i
             }
         }
     }
+    cout << "shares_permtation: permutation has done" << endl;
 }
 
 bool block_equal(block &a, block &b) {

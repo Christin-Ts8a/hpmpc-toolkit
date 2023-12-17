@@ -1,7 +1,7 @@
 #include <iostream>
 #include "io/fluid_sharmir_server.h"
 
-#define DATA_NUM 10000000
+#define DATA_NUM 100000
 
 using namespace std;
 
@@ -19,6 +19,10 @@ int main(int argc, const char* argv[]) {
 
     block** shares;
     ser.receive_data_from_client(shares, DATA_NUM);
+
+    block** randomness;
+    ser.receive_data_from_client(randomness, DATA_NUM + 2);
+
     for(int i = 0; i < client_size; i++) {
         delete[] shares[i];
     }

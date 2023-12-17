@@ -66,6 +66,12 @@ public:
         }
     }
 
+    void epoch(block** &shares, block** &randomness, int multi_num){
+        for(int i = 0; i < multi_num; i++) {
+            
+        }
+    }
+
 private:
     // 服务器序号
     int server_id;
