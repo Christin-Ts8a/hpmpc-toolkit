@@ -5,7 +5,7 @@
 #include <jsoncpp/json/json.h>
 #include "io/fluid_sharmir_client.h"
 
-#define DATA_NUM 100000
+#define DATA_NUM 10000000
 
 using namespace std;
 using namespace emp;

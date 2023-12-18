@@ -63,13 +63,46 @@ public:
         for(int i = 0; i < streams_rcv_cli.size(); i++) {
             shares[i] = new block[data_num];
             this->streams_rcv_cli[i]->recv_data(shares[i], sizeof(block) * data_num);
+            cout << "received " << data_num << " data from the " << i + 1 << "th client" << endl;
         }
     }
 
     void epoch(block** &shares, block** &randomness, int multi_num){
-        for(int i = 0; i < multi_num; i++) {
-            
+        block** r_shares = new block*[this->client_size];
+        // r·z
+        for(int i = 0; i < this->client_size; i++) {
+            r_shares[i] = new block[multi_num];
+            for(int j = 0; j < multi_num; j++) {
+                r_shares[i][j] = shares[i][j] * randomness[i][j];
+            }
         }
+        // z·z
+        block** result = new block*[this->client_size];
+        for(int i = 0; i < this->client_size; i++) {
+            result[i] = new block[multi_num];
+            for(int j = 0; j < multi_num; j++) {
+                r_shares[i][j] * r_shares[i][j];
+            }
+        }
+        // alphi
+        for(int i = 0; i < this->client_size; i++) {
+            for(int j = 0; j < multi_num; j++) {
+                randomness[i][j] *= randomness[i][multi_num];
+            }
+        }
+        // alphi·z
+        for(int i = 0; i < this->client_size; i++) {
+            for(int j = 0; j < multi_num; j++) {
+                result[i][j] * randomness[i][j];
+            }
+        }
+        // alphi·z·r
+        for(int i = 0; i < this->client_size; i++) {
+            for(int j = 0; j < multi_num; j++) {
+                result[i][j] * randomness[i][j] * randomness[i][multi_num + 1];
+            }
+        }
+        cout << "epoch is over" << endl;
     }
 
 private:
